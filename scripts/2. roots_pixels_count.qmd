@@ -90,7 +90,7 @@ for (f in image_files) {
 
 ```{r}
 df_pixel_count <- read.csv("../data/root_pixels_count.csv")
-  #read.csv("D:/Mes Donnees/2. THÈSE/6. Analyse/Rhizosphere/root_pixels_count.csv")
+
 df <- df_pixel_count %>%
   separate(file, into = c("bloc", "position", "orientation","year","month", "day", "hour", "minute", "fileextension1"), 
            sep = "_|\\.|H|M.| |-", remove = FALSE)%>%

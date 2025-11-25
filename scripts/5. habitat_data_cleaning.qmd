@@ -74,8 +74,8 @@ habitat_data <- habitat_data %>%
 probe_data_raw <- read.csv("../data/Diams_AF1W_soil.csv") 
 probe_data <- probe_data_raw %>%
   mutate(date = as.POSIXct(date, format = "%Y-%m-%d %H:%M:%S"), 
-         depth=as.factor(profondeur), 
-         position=as.factor(positionnement),
+         depth=as.factor(depth), 
+         position=as.factor(position),
          hum = hum_soil, 
          temp = temp_soil) 
 
