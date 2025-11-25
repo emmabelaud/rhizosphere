@@ -25,7 +25,7 @@ library(fs)
 Data from the fauna database is being utilised.
 
 ```{r}
-df_fauna <- read.csv("~/2. THÈSE/3. DIAMS/fauna_data.csv", sep = ",", na.strings = c("", "NA"))
+df_fauna <- read.csv("~/2. THÈSE/3. DIAMS/fauna_data/fauna_data.csv", sep = ",", na.strings = c("", "NA"))
 ```
 
 Only metadata related to usable images (=samples) are retained, i.e. those for which fauna data are available.
@@ -349,7 +349,7 @@ ggplot(aes(x = date, y = scanner, color = as.factor(id_image))) +
 
 ```{r}
 images_bank <- paste0(unique(df_final$image_name), ".png")
-writeLines(images_bank, "~/2. THÈSE/6. Analyse/2.Rhizosphere/2. image_bank_selection/image_bank.txt")
+writeLines(images_bank, ".../output/image_bank.txt")
 ```
 
 Run the Python script on Romaric (**ssh ebelaud\@147.99.15.59**) to copy the selected images:
