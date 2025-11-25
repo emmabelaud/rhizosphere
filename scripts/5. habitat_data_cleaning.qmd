@@ -11,7 +11,7 @@ editor: visual
 ```{r}
 library(tidyverse)
 library(data.table)
-habitat_data_raw <- read.csv("~/2. THÈSE/6. Analyse/2.Rhizosphere/4. habitat_data/distance_habitat_data.csv") 
+habitat_data_raw <- read.csv("../data/distance_habitat_data.csv") 
 habitat_data <- habitat_data_raw %>% 
   dplyr::select(-ID) %>%  
   drop_na()
@@ -71,7 +71,7 @@ habitat_data <- habitat_data %>%
 ##### Température et humidité
 
 ```{r}
-probe_data_raw <- read.csv("~/2. THÈSE/3. DIAMS/sensors_data/Diams_AF1W_soil.csv") 
+probe_data_raw <- read.csv("../data/Diams_AF1W_soil.csv") 
 probe_data <- probe_data_raw %>%
   mutate(date = as.POSIXct(date, format = "%Y-%m-%d %H:%M:%S"), 
          depth=as.factor(profondeur), 
@@ -111,7 +111,7 @@ habitat_data <- habitat_data %>%
 ```{r}
 dpi <- 1200 
 pixels_per_cm <- dpi / 2.54 
-root_density <- read.csv("~/2. THÈSE/3. DIAMS/roots_data/root_pixels_count.csv")  
+root_density <- read.csv("../data/root_pixels_count.csv")  
 root_density <- root_density %>%
   mutate(image_name = sub("\\.png$", "", root_density$file)) %>%  
   separate(file, into = c("bloc", "position", "orientation","year","month", "day", "hour", "minute", "fileextension1"), 
@@ -180,5 +180,5 @@ habitat_data <- habitat_data %>%
 ##### Cleaned data recording
 
 ```{r}
-write.csv(habitat_data, "~/2. THÈSE/6. Analyse/2.Rhizosphere/rhizosphere/output/distance_data_cleaned.csv", row.names = FALSE)
+write.csv(habitat_data, "../data/distance_data_cleaned.csv", row.names = FALSE)
 ```

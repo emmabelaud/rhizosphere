@@ -1,0 +1,169 @@
+---
+title: "fauna_habitat_data"
+format:
+  html:
+    embed-resources: true
+
+execute: 
+  warning: false
+  message: false
+---
+
+## Generating data on habitat use and availability for observed fauna
+
+This script aims to quantify habitat selection by soil invertebrates using spatially explicit environmental data. For each invertebrate detection (defined as the centroid of the bounding box), values of ten habitat variables—related to root distribution and structure—are extracted from raster layers. These values represent the *observed habitat use*. To evaluate *habitat availability*, 50 random points are generated within the spatial extent of each image, from which environmental variables are extracted and averaged. This average is then assigned to each fauna detection as a proxy for expected (i.e., available) habitat. The output is a dataset where each fauna detection has both observed and expected environmental data associated with it.
+
+```{r}
+library(terra)
+library(sf)
+library(dplyr)
+library(stringr)
+```
+
+### Define output file
+
+```{r}
+output_file <- "E:/distance_data.csv"
+```
+
+### Define selected environmental variables
+
+```{r}
+selected_vars <- c("distance_root_growth", "distance_root_mature")
+```
+
+### Load habitat raster files
+
+```{r}
+tif_dir <- "E:/output_raster"
+tif_files <- list.files(path = tif_dir, pattern = "\\.tif$", full.names = TRUE)
+```
+
+### Extract image names
+
+Removing the environmental variable suffixes, filter image already process
+
+```{r}
+image_names <- unique(str_extract(basename(tif_files), "^[^_]+_[^_]+_[^_]+_[^_]+_[^_]+"))
+if (file.exists(output_file)) {
+  habitat_data_old <- read.csv(output_file)
+  images_done <- unique(habitat_data_old$image_name)
+} else {
+  images_done <- character(0)
+}
+image_names_to_process <- setdiff(image_names, images_done)
+```
+
+### Load and clean fauna occurrence data
+
+```{r}
+loc_data <- read.csv("D:/Mes Donnees/2. THÈSE/3. DIAMS/fauna_data.csv", 
+                     sep = ",", na.strings = c("", "NA")) %>%
+  filter(!is.na(Predicted.class)) %>%  
+  mutate(
+    x = (xmin + xmax) / 2,
+    y = (ymin + ymax) / 2) %>%
+  select(image_name, date, scanner, Predicted.class, x, y) %>%
+  filter(!Predicted.class %in% c("root", "SOM"))
+```
+
+### Initialize result lists
+
+```{r}
+results_list <- list()
+random_results_list <- list()
+```
+
+### Main loop: process each image
+
+```{r}
+pb <- txtProgressBar(min = 0, max = length(image_names_to_process), style = 3)
+for (i in seq_along(image_names_to_process)) {
+  image_name <- image_names_to_process[i]
+  setTxtProgressBar(pb, i)  # Update progress bar
+  message(paste("Processing image:", image_name))
+  
+  # Select corresponding raster files
+  env_files <- tif_files[str_detect(basename(tif_files), paste0("^", image_name, "_"))] %>%
+    .[str_detect(basename(.), paste(selected_vars, collapse = "|"))]
+  
+  if (length(env_files) > 0) {
+    # Load and rename raster layers
+    env_rasters <- rast(env_files)
+    names(env_rasters) <- str_replace(basename(env_files), paste0("^", image_name, "_"), "") %>%
+      str_replace("\\.tif$", "")
+    
+    # Filter occurrence data for the current image
+    loc_filtered <- loc_data %>% filter(image_name == !!image_name)
+    
+    if (nrow(loc_filtered) > 0) {
+        n_rows <- nrow(env_rasters)
+      loc_filtered <- loc_filtered %>%
+            mutate(y = n_rows - y + 1)
+  
+      # Convert to spatial object
+      loc_sf <- st_as_sf(loc_filtered, coords = c("x", "y"), crs = crs(env_rasters))
+      
+      # Extract raster values at occurrence points
+      loc_env_values <- terra::extract(env_rasters, loc_sf) %>% 
+        replace(is.na(.), 0)
+      
+      # Store the observed results
+      results_list[[image_name]] <- cbind(loc_filtered, loc_env_values)
+      
+      # Generate random points within the raster extent
+      raster_extent <- st_as_sf(as.polygons(ext(env_rasters), 
+                                            crs = crs(env_rasters)))
+      
+      # Generate 50 random points within the raster extent
+      random_points <- st_sample(raster_extent, size = 50, type = "random") %>%
+          st_as_sf(crs = crs(env_rasters))
+
+      # Extract environmental values at random points
+      random_env_values <- terra::extract(env_rasters, vect(random_points)) %>% 
+        replace(is.na(.), 0)
+
+      # Compute mean of each environmental variable
+      mean_env_values <- random_env_values %>%
+        select(-ID) %>%
+        summarise(across(everything(), \(x) mean(x, na.rm = TRUE)))
+
+      # Compute sd of each environmental variable
+      sd_env_values <- random_env_values %>%
+        select(-ID) %>%
+        summarise(across(everything(), \(x) sd(x, na.rm = TRUE)))
+
+      colnames(sd_env_values) <- paste0(colnames(sd_env_values), "_sd")
+
+      # Fusion propre
+      env_stats <- bind_cols(mean_env_values, sd_env_values)%>%
+        mutate(image_name = image_name,
+        n_occurrences = nrow(loc_filtered)) 
+      
+      random_results_list[[image_name]] <- env_stats
+    }
+  }
+}
+
+close(pb)
+```
+
+### Merge results
+
+```{r}
+observed_table <- bind_rows(results_list) %>%
+  rename_with(~ paste0(.x, "_obs"), starts_with("distance"))
+
+availability_table <- bind_rows(random_results_list) %>%
+  rename_with(~ paste0(.x, "_exp"), starts_with("distance"))
+
+
+final_table <- observed_table %>%
+  left_join(availability_table, by = "image_name")
+```
+
+### Save or update results
+
+```{r}
+write.csv(final_table, "E:/distance_habitat_data.csv", row.names = FALSE)
+```

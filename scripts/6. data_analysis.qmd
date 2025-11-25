@@ -71,7 +71,7 @@ set.seed(123)
 
 ```{r}
 # Data import
-habitat_data_raw <- read.csv("~/2. THÈSE/6. Analyse/2.Rhizosphere/4. habitat_data/distance_data_cleaned.csv") %>%
+habitat_data_raw <- read.csv("../data/distance_data_cleaned.csv") %>%
   mutate(
     date = ymd_hms(date) %>% update(minute = 0, second = 0),
     land_use = position)
@@ -243,7 +243,7 @@ p_gas <- make_violin_plot(df_list$gastropoda, "Gastropoda") +
 
 panel <- (p_all | p_aca) / (p_col | p_gas) & theme(plot.margin = margin(3, 3, 3, 3))
 
-tiff("1.violin_plot.tiff", width = 1800, height = 1700, res = 600)
+tiff("../output/1.violin_plot.tiff", width = 1800, height = 1700, res = 600)
 panel
 dev.off()
 
@@ -501,7 +501,7 @@ RF_plot <- (combined / graph_legende) + plot_layout(heights = c(100,0.5)) +
     )
   )
 RF_plot
-tiff("2.randomforest_plot.tiff", width=6000, height=3000, res=400)
+tiff("../output/2.randomforest_plot.tiff", width=6000, height=3000, res=400)
 print(RF_plot)
 dev.off()
 ```
@@ -570,9 +570,9 @@ kable_rf_results <- rf_summary_wide_meta %>%
 
 
 
-save_kable(kable_rf_results, "~/2. THÈSE/6. Analyse/2.Rhizosphere/5. analysis/S1_table_rf_results.html")
-webshot("~/2. THÈSE/6. Analyse/2.Rhizosphere/5. analysis/S1_table_rf_results.html",
-        file = "~/2. THÈSE/6. Analyse/2.Rhizosphere/5. analysis/S1_table_rf_results.png", zoom = 2)
+save_kable(kable_rf_results, "../output/S1_table_rf_results.html")
+webshot("../output/S1_table_rf_results.html",
+        file = "../output/S1_table_rf_results.png", zoom = 2)
 
 dev.off()
 ```
@@ -768,7 +768,7 @@ plot_depth <- make_heatmap_shap(results_all_shap, "depth")
 plot_land_use <- make_heatmap_shap(results_all_shap, "land_use")
 heatmap_plot <- plot_depth / plot_land_use
 heatmap_plot
-tiff("3.heatmap_plot.tiff", width=3000, height=3500, res=400)
+tiff("../output/3.heatmap_plot.tiff", width=3000, height=3500, res=400)
 print(heatmap_plot)
 dev.off()
 ```
@@ -891,7 +891,7 @@ distrib_plot <- shap_distrib_depth / shap_distrib_land_use
 
 distrib_plot
 
-tiff("S1.shap_values_distribution_plot.tiff", width=2500, height=4000, res=300)
+tiff("../output/S1.shap_values_distribution_plot.tiff", width=2500, height=4000, res=300)
 print(distrib_plot)
 dev.off()
 ```
