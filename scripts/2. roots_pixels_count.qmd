@@ -22,6 +22,9 @@ library(lubridate)
 library(purrr)
 library(gratia)
 library(mgcv)
+if (!dir.exists("../output")) {
+  dir.create("../output")
+}
 ```
 
 ### MEASURING ROOT SURFACES
@@ -36,7 +39,7 @@ image_folder <- "V:/home/ebelaud/rootpainter_model/projects/DIAMS/results/SEGMEN
 image_files <- list.files(image_folder, pattern = "\\.png$", full.names = TRUE)
 
 # Output file
-output_file <- "V:/home/ebelaud/root_pixels_count.csv"
+output_file <- "../data/root_pixels_count.csv"
 ```
 
 ```{r}
@@ -86,7 +89,7 @@ for (f in image_files) {
 #### Data preparation
 
 ```{r}
-df_pixel_count <- read.csv("V:/home/ebelaud/root_pixels_count.csv")
+df_pixel_count <- read.csv("../data/root_pixels_count.csv")
   #read.csv("D:/Mes Donnees/2. THÈSE/6. Analyse/Rhizosphere/root_pixels_count.csv")
 df <- df_pixel_count %>%
   separate(file, into = c("bloc", "position", "orientation","year","month", "day", "hour", "minute", "fileextension1"), 

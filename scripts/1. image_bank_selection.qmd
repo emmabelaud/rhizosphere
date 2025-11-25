@@ -18,6 +18,9 @@ library(tidyverse)
 library(ggplot2)
 library(lubridate)
 library(fs)
+if (!dir.exists("../output")) {
+  dir.create("../output")
+}
 ```
 
 ### Data loading
@@ -25,7 +28,7 @@ library(fs)
 Data from the fauna database is being utilised.
 
 ```{r}
-df_fauna <- read.csv("~/2. THÈSE/3. DIAMS/fauna_data/fauna_data.csv", sep = ",", na.strings = c("", "NA"))
+df_fauna <- read.csv("../data/fauna_data.csv", sep = ",", na.strings = c("", "NA"))
 ```
 
 Only metadata related to usable images (=samples) are retained, i.e. those for which fauna data are available.

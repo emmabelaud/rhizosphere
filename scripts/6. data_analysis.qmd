@@ -27,6 +27,9 @@ library(webshot2)
 library(lme4) 
 library(treeshap)
 library(ggh4x)
+if (!dir.exists("../output")) {
+  dir.create("../output")
+}
 
 context_factors <- c("depth", "land_use")
 predictors <- c("root_cm2_count", "root_growth_cm2_count_24h",

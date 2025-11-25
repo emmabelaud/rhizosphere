@@ -23,7 +23,7 @@ library(stringr)
 ### Define output file
 
 ```{r}
-output_file <- "E:/distance_data.csv"
+output_file <- "../data/distance_data.csv"
 ```
 
 ### Define selected environmental variables
@@ -57,7 +57,7 @@ image_names_to_process <- setdiff(image_names, images_done)
 ### Load and clean fauna occurrence data
 
 ```{r}
-loc_data <- read.csv("D:/Mes Donnees/2. THÈSE/3. DIAMS/fauna_data.csv", 
+loc_data <- read.csv("../data/fauna_data.csv", 
                      sep = ",", na.strings = c("", "NA")) %>%
   filter(!is.na(Predicted.class)) %>%  
   mutate(
@@ -165,5 +165,5 @@ final_table <- observed_table %>%
 ### Save or update results
 
 ```{r}
-write.csv(final_table, "E:/distance_habitat_data.csv", row.names = FALSE)
+write.csv(final_table, "../data/distance_habitat_data.csv", row.names = FALSE)
 ```
