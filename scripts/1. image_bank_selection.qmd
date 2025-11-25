@@ -1,0 +1,359 @@
+---
+title: "Rhizosphère - Image bank selection"
+format:
+  html:
+    embed-resources: true
+
+execute: 
+  warning: false
+  message: false
+  echo: false 
+---
+
+The large volume of images available in the DIAMS database makes it impossible to process them all exhaustively. It is therefore necessary to extract a relevant subset that is representative of the conditions throughout the entire period covered, while maintaining sufficient quality in terms of data completeness. The document describes the approach taken to achieve this selection.
+
+```{r}
+#| echo: false
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(fs)
+```
+
+### Data loading
+
+Data from the fauna database is being utilised.
+
+```{r}
+df_fauna <- read.csv("~/2. THÈSE/3. DIAMS/fauna_data.csv", sep = ",", na.strings = c("", "NA"))
+```
+
+Only metadata related to usable images (=samples) are retained, i.e. those for which fauna data are available.
+
+```{r}
+df <- df_fauna %>%  
+  select(date, scanner, image_name)%>%
+  unique()%>%
+  mutate(date = ymd_hms(date),
+    position = substr(scanner, 4, 4),
+    depth = substr(scanner, 5, 6),
+    orientation = substr(scanner, 8, 8),
+    presence = 1)%>%
+  filter(position != "B")
+```
+
+### Schedule filtering
+
+Correction of minute offset: Some images have a one-minute offset (minute = 01) that distorts the time selection. This bias is corrected by normalising the times.
+
+**Only images captured at midnight and noon are selected.** These schedules are retained because they represent night and day periods respectively, regardless of seasonality.
+
+```{r}
+df <- df %>%
+  mutate(date = if_else(minute(date) == 1,date - minutes(1),date),
+         hour = hour(date),
+         minute = minute(date)) %>%
+  filter(minute == 0, hour %in% c(0, 12)) %>%
+  select(-hour, -minute)%>%
+  mutate(hour = format(date, "%H:%M"))%>%
+  mutate(day = as.Date(date))%>%
+  group_by(date,scanner,position,depth,orientation,presence,day, hour)%>%
+  slice(1)%>% ungroup()
+```
+
+### Completion of the dataset
+
+In order to assess the completeness of the data, a comprehensive grid of all possible combinations (day, time, position, depth, orientation) is generated. This is then cross-referenced with the observed data in order to identify any missing combinations.
+
+```{r}
+df_complete <- expand_grid(day = unique(df$day),
+                          hour = c("00:00", "12:00"),
+                          position = unique(df$position),
+                          depth = unique(df$depth),
+                          orientation = unique(df$orientation)) %>%
+  left_join(df, by = c("day", "hour", "position", "depth", "orientation")) %>%
+  mutate(presence = replace_na(presence, 0))
+```
+
+### Selecting the orientation of the scanners
+
+To reduce the volume of data, a single orientation of the scanners is selected. The choice is based on the orientation with the lowest rate of missing data, calculated for each modality.
+
+The rate of missing data is calculated according to the orientation of the scanners :
+
+```{r}
+orientation_rate <- df_complete %>%
+  group_by(orientation) %>%
+  summarise(
+    total = n(),
+    present = sum(presence),
+    missing_rate = (total - present) / total,
+    .groups = "drop")
+kableExtra::kable(orientation_rate)
+```
+
+The most comprehensive guidance option is selected :
+
+```{r}
+orientation_selection <- orientation_rate %>%
+  filter(missing_rate == min(missing_rate))%>%
+  pull(orientation)
+cat("Orientation selection :", orientation_selection)
+df_complete <- df_complete %>%
+  filter(orientation %in% orientation_selection)
+```
+
+**Visualisation of filtered data :**
+
+```{r}
+#| echo: false
+df_complete <- df_complete %>%
+  mutate(datetime = as.POSIXct(paste(day, hour), format = "%Y-%m-%d %H:%M"),
+         scanner = paste(position, depth, sep="_"))
+
+ggplot(df_complete, aes(x = datetime, y = scanner, color = as.factor(presence))) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = c("0" = "grey80", "1" = "#F4631E"), labels = c("Absence", "Presence"), name = "Image") +
+  labs(x = "Date", y = "Scanner", title = "Presence/absence of images by scanner and date") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### Period selection
+
+To guarantee the quality of the selected subset, data completeness is verified for each acquisition date and over continuous periods.
+
+First, the **expected number of images per day** is determined.
+
+```{r}
+nb_img_day <- n_distinct(df_complete$scanner) * 2 
+cat("Number of images expected per day : ", nb_img_day)
+```
+
+We then identify the days on which at least **70% of these images are present**.
+
+```{r}
+prop = 0.70
+days_complete <- df_complete %>%
+  group_by(day) %>%
+  summarise(n = sum(presence), .groups = "drop") %>%
+   mutate(complet = n >= (nb_img_day * prop))
+cat("Number of images expected per day : ", round(nb_img_day * prop, 0))
+```
+
+We select the **groups of 7 consecutive days** that meet this criterion.
+
+```{r}
+duration_min_period = 7
+#identification of continuous groups of full days
+days_complete <- days_complete %>%
+  arrange(day) %>%
+  mutate(gap = c(0, diff(day)),
+    group = cumsum(gap != 1 | !complet)) 
+#selection of groups of more than 7 consecutive full days
+valid_days <- days_complete %>%
+  filter(complet) %>%
+  count(group) %>%
+  filter(n >= duration_min_period) %>%
+  inner_join(days_complete, by = "group") %>%
+  pull(day)
+
+df_final <- df_complete %>%
+  filter(day %in% valid_days)
+```
+
+**Viewing filtered data:**
+
+```{r}
+#| echo: false
+df_final%>%
+  filter(datetime> as.Date('2024-08-25') & datetime < as.Date('2025-07-01'))%>%
+ggplot(aes(x = datetime, y = scanner, color = as.factor(presence))) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(
+    values = c("0" = "grey80", "1" = "#F4631E"),
+    labels = c("Absence", "Presence"),
+    name = "Image"
+  ) +
+  labs(
+    x = "Date",
+    y = "Scanner",
+    title = "Presence/absence of images by scanner and date"
+  ) +
+  scale_x_datetime(
+    date_breaks = "1 month",
+    date_labels = "%b %Y") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### Selection of representative weeks
+
+In order to cover different **seasonal and crop phases**, several 7-day periods spread throughout the year are targeted.
+
+Five target dates, spread throughout the year, are selected as the starting point for each 7-day period. For each date, the following 7 days are retrieved from the filtered data. Days with at least 90% of the expected images are counted. A week is considered "complete" if all 7 days are valid.
+
+```{r}
+#| echo: false
+target_dates <- tibble(
+  period = 1:7,
+  start_date = as.Date(c("2024-03-20", "2024-05-25", 
+                         "2024-07-15", "2024-09-19", 
+                         "2024-12-10", "2025-02-15", "2025-04-20")))
+selected_weeks <- target_dates %>%
+  mutate(data = map(start_date, ~ df_final %>%
+                      filter(day >= .x, day <= .x + (duration_min_period-1)))) %>%
+  unnest(cols = c(data))
+
+validity_weeks <- selected_weeks %>%
+  count(period, day, wt = presence) %>%
+  group_by(period) %>%
+  summarise(valid_days = sum(n >= nb_img_day * prop), complet = valid_days == duration_min_period, .groups = "drop")
+
+print(validity_weeks)
+```
+
+Each period is associated with a crop and a season according to its dates, by cross-referencing sowing/harvesting periods and calendar definitions of seasons.
+
+```{r}
+crops <- tibble(
+  crop = c("wheat", "sorghum", "Bare soil", "Chickpea"),
+  start_date = as.Date(c("2023-12-14", "2024-07-09", "2024-11-23", "2025-03-17")),
+  final_date   = as.Date(c("2024-07-08", "2024-11-22", "2025-03-16", "2025-07-15"))
+)
+
+years <- 2023:2025
+season <- c("spring", "summer", "autumn", "winter")
+seasons <- bind_rows(lapply(years, function(an) {
+  tibble(
+    season = season,
+    start_date = as.Date(paste0(an, c("-03-21", "-06-21", "-09-21", "-12-21"))),
+    final_date = as.Date(paste0(c(an, an, an, an + 1), c("-06-20", "-09-20", "-12-20", "-03-20"))))
+}))
+
+df_final <- selected_weeks %>%
+  left_join(crops %>% rowwise() %>% mutate(day = list(seq(start_date, final_date, by = "day"))) %>% unnest(cols = c(day)) %>% select(day, crop),
+            by = "day") %>%
+  left_join(seasons %>% rowwise() %>% mutate(day = list(seq(start_date, final_date, by = "day"))) %>% unnest(cols = c(day)) %>% select(day, season),
+            by = "day")
+```
+
+**Summary of selected periods:**
+
+```{r}
+#| echo: false
+synthesis_table <- df_final %>%
+  group_by(period) %>%
+  summarise(
+    start_date = min(day),
+    final_date = max(day),
+    nb_images = sum(presence),
+    crops = paste(unique(na.omit(crop)), collapse = ", "),
+    seasons = paste(unique(na.omit(season)), collapse = ", "),
+    .groups = "drop" )
+knitr::kable(synthesis_table, caption = "Summary of selected periods")
+
+```
+
+**Final display of selected periods**
+
+```{r}
+#| echo: false
+ggplot(df_final, aes(x = datetime, y = scanner, color = as.factor(presence))) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = c("0" = "grey80", "1" = "#F4631E"), labels = c("Absence", "Presence"), name = "Image") +
+  labs(x = "Date", y = "Scanner", title = "Presence/absence of images by scanner and date") +
+  scale_x_datetime(date_breaks = "1 month", date_labels = "%b %Y") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+### Selection of previous images for differentiation
+
+Creation of a copy of the image set with dates shifted by 9 days and selection of corresponding images
+
+```{r}
+df_reference <- df_final %>%
+  filter(presence==1)%>%
+  mutate(date = date - days(9)) %>%
+  select(depth, position, orientation, date) %>%
+  left_join(df %>% 
+      select(depth, position, orientation, date, image_name), by = c("depth", "position", "orientation", "date"))%>%
+  mutate(presence = if_else(is.na(image_name), 0, 1),
+         day_ref = as.Date(date),
+         hour_ref = format(date, "%H:%M"))
+```
+
+Number of missing images
+
+```{r}
+#| echo: false
+cat("Number of missing images :", sum(is.na(df_reference$image_name)), "\n")
+cat("Missing frame rate :", round(((sum(is.na(df_reference$image_name))/nrow(df_reference)))*100, 2), "%")
+```
+
+```{r}
+#| echo: false
+df_reference %>% 
+  mutate(scanner = paste(position, depth, sep="_"))%>%
+ggplot(aes(x = date, y = scanner, color = as.factor(presence))) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = c("0" = "grey80", "1" = "#F4631E"), labels = c("Absence", "Presence"), name = "Image") +
+  labs(x = "Date", y = "Scanner", title = "Presence/absence of images by scanner and date") +
+  scale_x_datetime(date_breaks = "1 month", date_labels = "%b %Y") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+Filtering images from the current dataset based on missing images from the previous dataset :
+
+```{r}
+df_final_filtered <- df_final %>%
+  filter(presence == 1) %>%
+  mutate(day_ref = as.Date(date - days(9)),
+         hour_ref = format(date - days(9), "%H:%M")) %>%
+  left_join(df_reference %>%
+              filter(presence == 1) %>%
+              select(depth, position, orientation, day_ref, hour_ref),
+            by = c("depth", "position", "orientation", "day_ref", "hour_ref"))%>%
+  mutate(id_image = "current")%>%
+  select(scanner, date, id_image, image_name)
+```
+
+Total list of images to be processed :
+
+```{r}
+df_final <- df_reference %>%
+  mutate(scanner = paste(position, depth, sep="_"))%>%
+  filter(presence == 1)%>%
+  mutate(id_image = "reference")%>%
+  select(scanner, date, id_image, image_name)%>%
+  bind_rows(., df_final_filtered)
+```
+
+```{r}
+#| echo: false
+df_final %>%
+ggplot(aes(x = date, y = scanner, color = as.factor(id_image))) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = c("reference" = "darkgreen", "current" = "#F4631E"), name = "Image") +
+  labs(x = "Date", y = "Scanner", title = "Presence/absence of images by scanner and date") +
+  scale_x_datetime(date_breaks = "1 month", date_labels = "%b %Y") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### Creation of the image bank
+
+```{r}
+images_bank <- paste0(unique(df_final$image_name), ".png")
+writeLines(images_bank, "~/2. THÈSE/6. Analyse/2.Rhizosphere/2. image_bank_selection/image_bank.txt")
+```
+
+Run the Python script on Romaric (**ssh ebelaud\@147.99.15.59**) to copy the selected images:
+
+-   `python3 /media/ebelaud/INTENSO/rhizosphere_images_bank_copy.py`
+
+*Next step: generating habitat maps \>\> "D:\\Mes Donnees\\2. THÈSE\\6. Analyse\\Rhizosphere\\3. habitat_maps\\root_habitat_maps_generation.qmd"*

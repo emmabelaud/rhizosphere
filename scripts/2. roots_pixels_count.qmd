@@ -1,0 +1,259 @@
+---
+title: "Roots_parts_differenciation"
+format:
+  html:
+    css: css/styles.css  
+    embed-resources: true
+    code-tools: true
+
+execute: 
+  warning: false
+  message: false
+  echo: false
+---
+
+```{r}
+#| echo: false
+library(terra)
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(lubridate)
+library(purrr)
+library(gratia)
+library(mgcv)
+```
+
+### MEASURING ROOT SURFACES
+
+From root masks, or images segmented from rootpainter, calculation of the number of pixels corresponding to root objects.
+
+```{r}
+# Folder containing the images
+image_folder <- "V:/home/ebelaud/rootpainter_model/projects/DIAMS/results/SEGMENTATION_model25/"
+
+# List of PNG files
+image_files <- list.files(image_folder, pattern = "\\.png$", full.names = TRUE)
+
+# Output file
+output_file <- "V:/home/ebelaud/root_pixels_count.csv"
+```
+
+```{r}
+# Load existing file if available
+if (file.exists(output_file)) {
+  results <- read.csv(output_file, stringsAsFactors = FALSE)
+  processed_files <- results$file
+} else {
+  results <- data.frame(
+    file = character(),
+    root_pixels_count = integer(),
+    stringsAsFactors = FALSE
+  )
+  processed_files <- character()
+}
+
+# Loop over files
+for (f in image_files) {
+  filename <- basename(f)
+  
+  # Check if already processed
+  if (filename %in% processed_files) {
+    next
+  }
+  
+  cat("Processing of :", filename, "\n")
+  
+  # Read only the first layer
+  r <- rast(f, lyrs = 3)
+  count <- global(r == 255, fun = "sum", na.rm = TRUE)[1,1]
+  
+  # Add results
+  results <- bind_rows(results, data.frame(
+    file = filename,
+    root_pixels_count = count,
+    stringsAsFactors = FALSE
+  ))
+  
+  # Incremental writing 
+  write.csv(results, output_file, row.names = FALSE)
+}
+
+```
+
+### ROOT SURFACE ANALYSIS
+
+#### Data preparation
+
+```{r}
+df_pixel_count <- read.csv("V:/home/ebelaud/root_pixels_count.csv")
+  #read.csv("D:/Mes Donnees/2. THÈSE/6. Analyse/Rhizosphere/root_pixels_count.csv")
+df <- df_pixel_count %>%
+  separate(file, into = c("bloc", "position", "orientation","year","month", "day", "hour", "minute", "fileextension1"), 
+           sep = "_|\\.|H|M.| |-", remove = FALSE)%>%
+  mutate(minute = if_else(minute == "01", "00", minute))%>%
+  filter(hour %in% c("00", "06", "12", "18")) %>%
+  mutate(datetime = ymd_hm(paste(year, month, day, hour, minute)))%>%
+  filter(year(datetime) > 2023) %>%
+  mutate(position = as.factor(position),
+         orientation = as.factor(orientation),
+         scan = as.factor(paste(position, orientation, sep = "_")))%>%
+  mutate(depth = substr(position, 2, 3),
+         position = substr(position, 1, 1))
+```
+
+#### Conversion of surface areas (pixels \> cm²)
+
+The images were acquired at a resolution of 1200 dpi, equivalent to **472.44 pixels/cm**. Root surfaces (initially in pixels) are converted to **cm²** using the following formula:
+
+$$
+Surface (cm^2) = Pixels / (472.44)^2
+$$
+
+```{r}
+#| echo: true
+dpi <- 1200
+pixels_per_cm <- dpi / 2.54
+df <- df %>%
+  mutate(root_cm2_count = root_pixels_count / (pixels_per_cm^2))
+```
+
+#### Image bank viewing
+
+The evolution of root surfaces over time is represented, separated according to the position of the scanner:
+
+```{r}
+  ggplot(df, aes(datetime, root_cm2_count))+
+  geom_point()+
+  labs(x = "Date", y = "Root area (cm²)")+
+  facet_wrap(~scan, ncol = 4)
+```
+
+#### Quantification of apex surfaces according to time step
+
+The differences in surface area between two successive images correspond to newly emerged portions of the roots, also known as apices. These young segments play a key role in the processes of absorption and exudation. A key question is therefore to determine the optimal time step for defining these growth areas in a meaningful way.
+
+We explore the distribution of newly appeared surfaces (surface delta \>\> apex) for a series of time steps ranging from 6 to 360 hours (15 days). Only significant positive deltas (\> 0.01 cm²) are retained to reflect actual growth activity:
+
+```{r}
+time_lags <- seq(6, 720, by = 6)
+
+calculate_differences <- function(df, lags) {
+  df <- df %>%
+    arrange(datetime)
+  
+  map_dfr(lags, function(lag_hr) {
+    df %>%
+      mutate(lag_hours = lag_hr,
+             datetime_target = datetime + hours(lag_hr)) %>%
+      left_join(df %>%
+                  select(datetime, root_cm2_count) %>%
+                  rename(datetime_target = datetime,
+                         root_cm2_count_lag = root_cm2_count),
+                by = c("datetime_target")) %>%
+      mutate(delta_cm2 = root_cm2_count_lag - root_cm2_count)
+  })
+}
+
+df_diff <- df %>%
+  group_by(bloc, position, orientation, datetime) %>%
+  slice(1) %>%
+  ungroup()%>%
+  group_by(bloc, position, depth, orientation)%>%
+  group_modify(~calculate_differences(.x, time_lags))%>%
+  ungroup()%>%
+  filter(!is.na(delta_cm2))%>%
+  filter(delta_cm2 > 0)
+```
+
+The average apex areas as a function of time step are shown, along with their variability (standard deviation). An initial average is calculated by scanner, then the values are aggregated:
+
+```{r}
+plot1 <- df_diff %>%
+  group_by(bloc, scan, lag_hours) %>%
+  mutate(mean_delta = mean(delta_cm2, na.rm = TRUE),
+         sd_delta = sd(delta_cm2, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(lag_hours) %>%
+  mutate(mean_delta = mean(mean_delta, na.rm = TRUE),
+         sd_delta = sd(sd_delta, na.rm = TRUE)) %>%
+  ggplot(aes(lag_hours, mean_delta)) +
+  geom_line() +
+  labs(x = "Time step (hours)", y = "Average surface area of the apices (cm²)")
+
+plot2 <- plot1 +
+  geom_ribbon(aes(ymin = mean_delta - sd_delta,
+                  ymax = mean_delta + sd_delta,
+                  alpha = 0.1)) +
+  labs(y = "Average surface area ± SD (cm²)") +
+  theme(legend.position = "none")
+
+plot1
+plot2
+```
+
+#### **Characterisation of growth dynamics**
+
+**Assumption:** roots grow dynamically during a certain active phase, followed by a slowdown or stabilisation. This active growth phase results in an increase in the surface area occupied by the apices. Quantifying this surface area according to the time lag from which it is approached makes it possible to characterise the growth dynamics and identify the surface areas actually associated with this active growth phase.
+
+**Objective:** to identify the time threshold at which growth slows down, by modelling the surface area occupied by newly emerged root portions according to the time lag from which they are calculated.
+
+**Method:** Modelling of the apex surface as a function of time step using a generalised additive model (GAM). Calculation of the model derivative to identify inflection points. Detection of the first point where the derivative becomes negative (phase change \> transition between active growth and slowdown).
+
+```{r}
+mod <- gam(delta_cm2 ~ s(lag_hours),  random = list(scan = ~1)
+           ,data = df_diff)
+deriv <- derivatives(mod, order=1)
+draw(deriv)
+
+changepoint <- deriv$lag_hours[which(deriv$.lower_ci < 0)[1]] 
+min_deriv_idx <- which.min(deriv$.derivative)
+change_point <- deriv$lag_hours[min_deriv_idx]
+cat("thresholds :", round(change_point/24, 0), "days")
+```
+
+#### Variation in growth dynamics
+
+```{r}
+df_diff %>%
+  group_by(bloc, scan, lag_hours) %>%
+  mutate(mean_delta = mean(delta_cm2, na.rm = TRUE),
+         sd_delta = sd(delta_cm2, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(depth, position, lag_hours) %>%
+  mutate(mean_delta = mean(mean_delta, na.rm = TRUE),
+         sd_delta = sd(sd_delta, na.rm = TRUE)) %>%
+  ggplot(aes(lag_hours, mean_delta)) +
+  geom_line() +
+  facet_grid(depth~position)+
+  labs(x = "Time step (hours)", y = "Average surface area of the apices (cm²)")
+
+
+compute_deriv_by_group <- function(df_group) {
+  tryCatch({
+    mod <- gam(delta_cm2 ~ s(lag_hours, bs = "cs"), data = df_group)
+    deriv <- derivatives(mod, order = 1) %>%
+      mutate(depth = unique(df_group$depth),
+             position = unique(df_group$position))
+    return(deriv)
+  }, error = function(e) {
+    return(NULL) 
+  })
+}
+
+# Apply by group (depth × position)
+derivatives_df <- df_diff %>%
+  group_by(depth, position) %>%
+  group_split() %>%
+  map_dfr(compute_deriv_by_group)
+
+# Visualisation
+ggplot(derivatives_df, aes(x = lag_hours, y = .derivative)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = .lower_ci, ymax = .upper_ci), alpha = 0.2) +
+  geom_vline(xintercept = 24 * 9, linetype = "dashed", color = "red") +
+  facet_grid(depth ~ position) +
+  labs(x = "Time steps (hours)", y = "Derived from the surface area of the apices") +
+  theme_minimal()
+
+```

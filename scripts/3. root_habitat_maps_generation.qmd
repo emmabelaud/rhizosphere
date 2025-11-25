@@ -1,0 +1,251 @@
+---
+title: "root_habitats_generation"
+format:
+  html:
+    embed-resources: true
+
+execute: 
+  warning: false
+  message: false
+---
+
+## Creation of habitat maps linked to root objects
+
+```{r}
+library(terra)
+library(sf)
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(stringr)
+library(grid)
+Sys.setenv(GDAL_PAM_ENABLED = "NO")
+```
+
+### Defining paths and parameters
+
+Path to segmented images:
+
+```{r}
+dataset_dir <- "~/2. THÈSE/6. Analyse/Rhizosphere/Root/sample_seg"
+image_files <- list.files(dataset_dir, pattern = "\\.png$", full.names = TRUE)
+```
+
+Path to generated images:
+
+```{r}
+output_raster_dir <- "~/2. THÈSE/6. Analyse/Rhizosphere/Root/tmp"
+if (!dir.exists(output_raster_dir)) dir.create(output_raster_dir, recursive = TRUE)
+```
+
+Definition of buffer sizes: 236px=0.5cm, 500px=1cm, 945px=2cm
+
+```{r}
+buffer_distances <- c(236, 500, 945)
+```
+
+To eliminate noise, define the minimum surface area of root objects so that they are retained:
+
+```{r}
+area_threshold = 1000
+```
+
+### Utility functions
+
+Verification of images already processed
+
+```{r}
+has_been_processed <- function(image_name) {
+  image_basename <- tools::file_path_sans_ext(basename(image_name))
+  existing_files <- list.files(output_raster_dir, pattern = "\\.tif$", full.names = TRUE)
+  processed_basenames <- unique(sub("_buffer_.*$", "", sub("_root_.*$", "", sub("\\.tif$", "", basename(existing_files)))))
+  return(image_basename %in% processed_basenames)
+}
+```
+
+Image reading and binarisation
+
+```{r}
+read_and_binarize_image <- function(file, xmin = NULL, xmax = NULL, ymin = NULL, ymax = NULL) {
+  message("Reading and binarizing the image...")
+  img <- rast(file, lyrs = 3)
+  if (!is.null(xmin) & !is.null(xmax) & !is.null(ymin) & !is.null(ymax)) {
+    img <- crop(img, ext(xmin, xmax, ymin, ymax))
+  }
+  img <- subst(img, 255, 1, others = NA)
+  return(img)
+}
+```
+
+Image subtraction
+
+```{r}
+subtract_images <- function(current_img, past_img) {
+  message("Subtracting images...")
+  return(current_img - ifel(!is.na(past_img), past_img, 0))
+}
+```
+
+Conversion of connected pixels into polygons and elimination of "noise"
+
+```{r}
+convert_and_filter_polygons <- function(image, area_threshold) {
+  message("Converting image to polygons and filtering...")
+  polygons <- st_as_sf(as.polygons(image)) %>% st_cast("POLYGON", warn = FALSE)
+  polygons$area <- st_area(polygons)
+  return(polygons %>% filter(area >= area_threshold))
+}
+```
+
+Buffer application
+
+```{r}
+apply_buffer <- function(sf_object, buffer_dist) {
+  message(paste("Applying buffer of", buffer_dist, "units..."))
+  return(st_buffer(sf_object, dist = buffer_dist))
+}
+```
+
+Calculation of distance maps
+
+```{r}
+generate_distance_map <- function(raster_obj) {
+  message("Generating distance map...")
+  return(distance(raster_obj))
+}
+```
+
+Raster conversion
+
+```{r}
+convert_to_raster <- function(sf_object, raster_template, resolution = 1) {
+  message("Converting sf object to raster...")
+  r <- rast(ext(raster_template), res = resolution, crs = crs(raster_template))
+  r_raster <- rasterize(sf_object, r, field = 1)
+  ext(r_raster) <- ext(raster_template)
+  r_raster <- resample(r_raster, raster_template, method = "near")
+  return(r_raster)
+}
+```
+
+Saving rasters
+
+```{r}
+save_raster <- function(raster_obj, image_name, suffix, save = TRUE, overwrite = TRUE) {
+  if (save) {
+    output_file <- file.path(output_raster_dir, paste0(image_name, "_", suffix, ".tif"))
+    if (is.null(ext(raster_obj)) || is.null(res(raster_obj))) {
+      stop("Error: Raster has no defined extent or resolution.")
+    }
+    message("Saving raster:", output_file)
+    writeRaster(raster_obj, output_file, overwrite = overwrite)
+  }
+}
+```
+
+### Main processing pipeline
+
+```{r}
+process_images <- function(past_image_file, current_image_file, area_threshold) {
+  past_img <- read_and_binarize_image(past_image_file)
+  current_img <- read_and_binarize_image(current_image_file)
+  
+  diff_img <- subtract_images(current_img, past_img)
+  
+  root_mature <- subst(diff_img, 0, 1, others = NA)
+  root_growth <- subst(diff_img, 1, 1, others = NA)
+  
+  habitat_variables <- list(
+    root_mature = convert_and_filter_polygons(root_mature, area_threshold),
+    root_growth = convert_and_filter_polygons(root_growth, area_threshold)
+  )
+  
+  habitat_variables$raster_root_mature <- convert_to_raster(habitat_variables$root_mature, root_mature)
+  habitat_variables$raster_root_growth <- convert_to_raster(habitat_variables$root_growth, root_growth)
+  
+  for (dist in buffer_distances) {
+    buffer_name <- paste0("buffer_mature_", dist)
+    habitat_variables[[buffer_name]] <- apply_buffer(habitat_variables$root_mature, dist)
+    raster_name <- paste0("raster_", buffer_name)
+    habitat_variables[[raster_name]] <- convert_to_raster(habitat_variables[[buffer_name]], root_mature)
+    
+    buffer_name_growth <- paste0("buffer_growth_", dist)
+    habitat_variables[[buffer_name_growth]] <- apply_buffer(habitat_variables$root_growth, dist)
+    raster_name_growth <- paste0("raster_", buffer_name_growth)
+    habitat_variables[[raster_name_growth]] <- convert_to_raster(habitat_variables[[buffer_name_growth]], root_growth)
+  }
+  
+  habitat_variables$distance_root_mature <- generate_distance_map(habitat_variables$raster_root_mature)
+  habitat_variables$distance_root_growth <- generate_distance_map(habitat_variables$raster_root_growth)
+  
+  return(habitat_variables)
+}
+```
+
+### Metadata extraction
+
+```{r}
+extract_date <- function(filename) {
+  date <- as.Date(str_match(basename(filename), "_(\\d{4}-\\d{2}-\\d{2})_")[, 2])
+  time <- str_match(basename(filename), "_\\d{4}-\\d{2}-\\d{2}_(\\d{2}H\\d{2}M)")[, 2]
+  return(paste(date, substr(time, 1, 2), substr(time, 4, 5)))
+}
+
+extract_scanner <- function(filename) {
+  return(str_extract(basename(filename), "^[A-Z]+_[A-Z0-9]+_[A-Z]+"))
+}
+```
+
+### Treatment
+
+Sorts images by scanner and date, compares each image to the one from 9 days prior, executes the processing pipeline, and saves all generated rasters.
+
+```{r}
+df_images <- data.frame(
+  file = image_files,
+  date = as.POSIXct(sapply(image_files, extract_date), format = "%Y-%m-%d %H", tz = "UTC"),
+  scanner = sapply(image_files, extract_scanner)
+) %>% arrange(scanner, date)
+```
+
+```{r}
+for (scanner in unique(df_images$scanner)) {
+  df_scanner <- filter(df_images, scanner == scanner)
+  
+  for (i in seq_len(nrow(df_scanner))) {
+    current_file <- df_scanner$file[i]
+    current_basename <- tools::file_path_sans_ext(basename(current_file))
+    
+    if (has_been_processed(current_basename)) {
+      message("Skipping already processed image: ", basename(current_file))
+      next
+    }
+    
+    target_date <- df_scanner$date[i] - 9 * 24 * 3600
+    past_candidates <- filter(df_scanner, date == target_date)
+    
+    if (nrow(past_candidates) == 0) {
+      message("No matching past image found for: ", basename(current_file))
+      next
+    }
+    if (nrow(past_candidates) > 1) {
+      warning("Multiple past files found for the same scanner, using the first one: ", past_candidates$file[1])
+    }
+    
+    past_file <- past_candidates$file[1]
+    
+    message("Processing: ", basename(current_file), " vs ", basename(past_file))
+    processed <- process_images(past_file, current_file, area_threshold = area_threshold)
+    
+    # Save raster outputs
+    save_raster(processed$raster_root_mature, current_basename, "root_mature")
+    save_raster(processed$raster_root_growth, current_basename, "root_growth")
+    for (dist in buffer_distances) {
+      save_raster(processed[[paste0("raster_buffer_mature_", dist)]], current_basename, paste0("buffer_mature_", dist))
+      save_raster(processed[[paste0("raster_buffer_growth_", dist)]], current_basename, paste0("buffer_growth_", dist))
+    }
+    save_raster(processed$distance_root_mature, current_basename, "distance_root_mature")
+    save_raster(processed$distance_root_growth, current_basename, "distance_root_growth")
+  }
+}
+```
