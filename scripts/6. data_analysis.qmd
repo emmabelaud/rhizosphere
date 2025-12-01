@@ -66,8 +66,7 @@ predators_count = "Predator density",
 root_cm2_count = "Root density",
 root_growth_cm2_count_24h = "Root growth flux",
 land_use = "Land-use",
-depth = "Depth",
-period = "Period")
+depth = "Depth")
 
 set.seed(123)
 ```
@@ -75,48 +74,11 @@ set.seed(123)
 ```{r}
 # Data import
 habitat_data_raw <- read.csv("../output/distance_data_cleaned.csv") %>%
-  mutate(
-    date = ymd_hms(date) %>% update(minute = 0, second = 0),
-    land_use = position)
+    mutate(land_use = position)
+habitat_data_raw$date <- parse_date_time(habitat_data_raw$date,orders = c("Y-m-d H:M:S", "Y-m-d"), tz = "UTC")
 
-# Creation of an invertebrate abundance variable
-habitat_data <- habitat_data_raw %>%
-  group_by(image_name) %>%
-  mutate(invertebrate_count = n()) %>%
-  ungroup()
-
-# Creation of a predator abundance variable
-predators_count <- habitat_data %>%
-  filter(Predicted.class %in% c("mesostigmata", "pseudoscorpionida", "araneae", "lithobiomorpha", "geophilomorpha")) %>%
-  count(image_name, name = "predators_count")
-
-habitat_data <- habitat_data %>%
-  left_join(predators_count, by = "image_name") %>%
-  mutate(predators_count = replace_na(predators_count, 0))
-
-# Taxon filtering 
-clean_taxon <- function(x) {
-  case_when(
-    x %in% c("pseudosinella", "poduromorpha") ~ "collembola",
-    x %in% c("trombidiformes", "mesostigmata") ~ "acari",
-    TRUE ~ x
-  )
-}
-
-relevant_taxa <- habitat_data %>%
-  mutate(Predicted.class.levelup = clean_taxon(Predicted.class)) %>%
-  count(Predicted.class.levelup) %>%
-  filter(n >= 300, !Predicted.class.levelup %in% c("unknown", "multi_taxa")) %>%
-  pull(Predicted.class.levelup)
-
-habitat_data_filtered <- habitat_data %>%
-  mutate(Predicted.class.levelup = clean_taxon(Predicted.class)) %>%
-  filter(Predicted.class.levelup %in% relevant_taxa)
-```
-
-```{r}
 #df joint
-df_raw <- habitat_data_filtered %>%
+df_raw <- habitat_data_raw %>%
   mutate(
     mature = distance_root_mature_obs - distance_root_mature_exp,
     growth = distance_root_growth_obs - distance_root_growth_exp
@@ -131,7 +93,7 @@ prep_df <- function(taxon = NA) {
   df %>%
     group_by(
       image_name, root_type, invertebrate_count, predators_count,
-      land_use, crop, season, period, depth,
+      land_use, depth,
       root_cm2_count, root_growth_cm2_count_24h, temp, hum,
       temp_soil_amplitude, hum_soil_amplitude
     ) %>%
@@ -139,7 +101,7 @@ prep_df <- function(taxon = NA) {
     filter(!is.na(diff), land_use %in% c("A","C")) %>%
     mutate(
       behavior = case_when(diff > 0 ~ "avoidance", diff < 0 ~ "selection"),
-      across(c(land_use, depth, period, root_type, behavior), as.factor)
+      across(c(land_use, depth, root_type, behavior), as.factor)
     ) %>%
     mutate(across(
       c(root_cm2_count,root_growth_cm2_count_24h,temp,hum,temp_soil_amplitude,hum_soil_amplitude,invertebrate_count,predators_count), ~ as.numeric(scale(.x))))
@@ -376,7 +338,6 @@ rf_results_all <- rf_results_all %>%
     variable %in% c("hum", "hum_soil_amplitude") ~ "Humidity",
     variable %in% c("root_cm2_count", "root_growth_cm2_count_24h") ~ "Ressource",
     variable %in% c("invertebrate_count", "predators_count") ~ "Biotiques",
-    variable %in% c("land_use", "depth", "period") ~ "Contextuelles",
     TRUE ~ "Autres"
   ))
 
@@ -399,7 +360,6 @@ palette_df <- data.frame(
     variable %in% c("hum", "hum_soil_amplitude") ~ "Humidity",
     variable %in% c("root_cm2_count", "root_growth_cm2_count_24h") ~ "Ressource",
     variable %in% c("invertebrate_count", "predators_count") ~ "Biotiques",
-    variable %in% c("land_use", "depth", "period") ~ "Contextuelles",
     TRUE ~ "Autres"
     ),
     variable = factor(variable, levels = names(factor_palette)))
@@ -603,7 +563,6 @@ shap_results_all <- shap_results_all %>%
     variable %in% c("hum", "hum_soil_amplitude") ~ "Humidity",
     variable %in% c("root_cm2_count", "root_growth_cm2_count_24h") ~ "Ressource",
     variable %in% c("invertebrate_count", "predators_count") ~ "Biotiques",
-    variable %in% c("land_use", "depth", "period") ~ "Contextuelles",
     TRUE ~ "Autres"
   ))
 
