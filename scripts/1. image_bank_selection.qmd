@@ -45,7 +45,7 @@ df <- df_fauna %>%
   filter(position != "B")
 ```
 
-### Schedule filtering
+### Hour filtering
 
 Correction of minute offset: Some images have a one-minute offset (minute = 01) that distorts the time selection. This bias is corrected by normalising the times.
 
@@ -53,9 +53,11 @@ Correction of minute offset: Some images have a one-minute offset (minute = 01) 
 
 ```{r}
 df <- df %>%
-  mutate(date = if_else(minute(date) == 1,date - minutes(1),date),
-         hour = hour(date),
-         minute = minute(date)) %>%
+  mutate(date = ymd_hms(date), 
+      date = if_else(minute(date) == 1 & !any(minute(date) == 0),  
+      date - minutes(1),date), 
+      hour = hour(date),
+      minute = minute(date)) %>%
   filter(minute == 0, hour %in% c(0, 12)) %>%
   select(-hour, -minute)%>%
   mutate(hour = format(date, "%H:%M"))%>%
@@ -352,11 +354,5 @@ ggplot(aes(x = date, y = scanner, color = as.factor(id_image))) +
 
 ```{r}
 images_bank <- paste0(unique(df_final$image_name), ".png")
-writeLines(images_bank, ".../output/image_bank.txt")
+writeLines(images_bank, "../output/image_bank.txt")
 ```
-
-Run the Python script on Romaric (**ssh ebelaud\@147.99.15.59**) to copy the selected images:
-
--   `python3 /media/ebelaud/INTENSO/rhizosphere_images_bank_copy.py`
-
-*Next step: generating habitat maps \>\> "D:\\Mes Donnees\\2. THÈSE\\6. Analyse\\Rhizosphere\\3. habitat_maps\\root_habitat_maps_generation.qmd"*

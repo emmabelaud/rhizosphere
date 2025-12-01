@@ -504,7 +504,7 @@ RF_plot <- (combined / graph_legende) + plot_layout(heights = c(100,0.5)) +
     )
   )
 RF_plot
-tiff("../output/2.randomforest_plot.tiff", width=6000, height=3000, res=400)
+tiff("../output/2.randomforest_plot.tiff", width=5000, height=2000, res=400)
 print(RF_plot)
 dev.off()
 ```
