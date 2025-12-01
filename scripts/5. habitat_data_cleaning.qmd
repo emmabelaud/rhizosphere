@@ -20,7 +20,6 @@ habitat_data_raw <- read.csv("../data/distance_habitat_data.csv")
 habitat_data <- habitat_data_raw %>% 
   dplyr::select(-ID) %>%  
   drop_na()
-
 ```
 
 ### Position metadata
@@ -32,9 +31,9 @@ habitat_data <- habitat_data %>%
          orientation = as.factor(substr(scanner, 8, 8)))
 ```
 
-### Environmental data 
+### Environmental data
 
-Soil temperature et humidity, and daily amplitudecalculation
+Soil temperature et humidity, and daily amplitude calculation
 
 ```{r}
 probe_data_raw <- read.csv("../data/Diams_AF1W_soil.csv") 
@@ -60,16 +59,12 @@ dt[, hum_soil_amplitude := frollapply(hum_soil, 96, max, align = "right") -
 probe_data_processed <- as.data.frame(dt)
 
 habitat_data <- habitat_data %>%
-  mutate(
-    data_init = date,
+  mutate(data_init = date,
     date = floor_date(ymd_hms(date), unit = "hour"),
-    date = update(date, minute = 0, second = 0)
-  ) %>%
-  left_join(
-    probe_data_processed %>% 
+    date = update(date, minute = 0, second = 0)) %>%
+  left_join(probe_data_processed %>% 
       drop_na() %>% mutate(depth = as.factor(depth)) %>%
-      select(date, depth, position, hum, temp, temp_soil_amplitude, hum_soil_amplitude),
-    by = c("date", "depth", "position"))
+      select(date, depth, position, hum, temp, temp_soil_amplitude, hum_soil_amplitude),by = c("date", "depth", "position"))
 ```
 
 ### Roots data
@@ -83,7 +78,7 @@ pixels_per_cm <- dpi / 2.54
 
 root_density_raw <- read.csv("../data/root_pixels_count.csv")  
 root_density_raw <- root_density_raw %>%
-  mutate(image_name = sub("\\.png$", "", df_pixel_count$file)) %>%  
+  mutate(image_name = sub("\\.png$", "", root_density_raw$file)) %>%  
   separate(file, into = c("bloc", "position", "orientation","year","month", "day", "hour", "minute", "fileextension1"), 
            sep = "_|\\.|H|M.| |-", remove = FALSE)%>%
   mutate(scanner= as.factor(paste(position, orientation, sep = "_")),
@@ -138,8 +133,8 @@ root_density <- root_density %>%
 
 habitat_data <- habitat_data %>%   
   left_join(root_density %>% 
-              select(date, position, depth, orientation, root_cm2_count, root_growth_cm2_count, root_mature_cm2_count,root_growth_cm2_count_24h), 
-            by = c("date", "position", "depth", "orientation"))
+              select(image_name, root_cm2_count, root_growth_cm2_count, root_mature_cm2_count,root_growth_cm2_count_24h), 
+            by = c("image_name"))
 ```
 
 ### Distance data transformation
