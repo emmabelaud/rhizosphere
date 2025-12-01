@@ -6,60 +6,24 @@ editor: visual
 
 ## Habitat data cleaning
 
-##### Import
+### Import
 
 ```{r}
+if (!dir.exists("../output")) {
+  dir.create("../output")
+}
+
 library(tidyverse)
 library(data.table)
+
 habitat_data_raw <- read.csv("../data/distance_habitat_data.csv") 
 habitat_data <- habitat_data_raw %>% 
   dplyr::select(-ID) %>%  
   drop_na()
+
 ```
 
-##### Period metadata
-
-```{r}
-habitat_data <- habitat_data %>%   
-  mutate(day = as.Date(date)) 
-crops <- tibble(   
-  crop = c("wheat", "sorghum", "bare soil", "chickpea"),   
-  start_date = as.Date(c("2023-12-14", "2024-07-09", "2024-11-23", "2025-03-17")),   final_data   = as.Date(c("2024-07-08", "2024-11-22", "2025-03-16", "2025-07-15")))  
-
-season <- c("spring", "summer", "autumn", "winter") 
-years <- 2023:2025 
-seasons <- bind_rows(lapply(years, function(an) {   
-  tibble(
-    season = season,     
-         start_date = as.Date(paste0(an, c("-03-21", "-06-21", "-09-21", "-12-21"))),     final_data = as.Date(paste0(c(an, an, an, an + 1), c("-06-20", "-09-20", "-12-20", "-03-20")))) }))  
-
-target_dates <- tibble(   
-  period = 1:7,   
-  start_date = as.Date(c("2024-03-20", "2024-05-25", "2024-07-15", "2024-09-19", "2024-12-10", "2025-02-15","2025-04-20")))  
-days_crop <- crops %>%   
-  rowwise() %>%   
-  mutate(day = list(seq(start_date, final_data, by = "day"))) %>%   
-  unnest(day) %>%   select(day, crop)  
-
-habitat_data <- habitat_data %>%   
-  left_join(days_crop, by = "day")  
-season_days <- seasons %>%   
-  rowwise() %>%   
-  mutate(day = list(seq(start_date, final_data, by = "day"))) %>%   
-  unnest(day) %>%   
-  select(day, season)  
-habitat_data <- habitat_data %>%   
-  left_join(season_days, by = "day")  
-period_days <- target_dates %>%   
-  rowwise() %>%   
-  mutate(day = list(seq(start_date, start_date + 6, by = "day"))) %>%   
-  unnest(day) %>%   
-  select(day, period)  
-habitat_data <- habitat_data %>%   
-  left_join(period_days, by = "day") 
-```
-
-##### Métadonnées position
+### Position metadata
 
 ```{r}
 habitat_data <- habitat_data %>%   
@@ -68,7 +32,9 @@ habitat_data <- habitat_data %>%
          orientation = as.factor(substr(scanner, 8, 8)))
 ```
 
-##### Température et humidité
+### Environmental data 
+
+Soil temperature et humidity, and daily amplitudecalculation
 
 ```{r}
 probe_data_raw <- read.csv("../data/Diams_AF1W_soil.csv") 
@@ -106,44 +72,57 @@ habitat_data <- habitat_data %>%
     by = c("date", "depth", "position"))
 ```
 
-##### Densité racinaire
+### Roots data
+
+Calculation of root indices
 
 ```{r}
+#image resolution
 dpi <- 1200 
 pixels_per_cm <- dpi / 2.54 
+
 root_density_raw <- read.csv("../data/root_pixels_count.csv")  
-root_density<- root_density_raw %>%
-  mutate(image_name = sub("\\.png$", "", root_density_raw$file)) %>%  
+root_density_raw <- root_density_raw %>%
+  mutate(image_name = sub("\\.png$", "", df_pixel_count$file)) %>%  
   separate(file, into = c("bloc", "position", "orientation","year","month", "day", "hour", "minute", "fileextension1"), 
            sep = "_|\\.|H|M.| |-", remove = FALSE)%>%
-  mutate(date = ymd_hm(paste(year, month, day, hour, minute)), 
-      date = if_else(minute(date) == 1 & !any(minute(date) == 0),  
-      date - minutes(1),date))%>%
-  mutate(scanner = as.factor(paste(position, orientation, sep = "_")),
+  mutate(scanner= as.factor(paste(position, orientation, sep = "_")),
          depth = as.factor(substr(scanner, 2, 3)),
          position = as.factor(substr(scanner, 1, 1)),
-         orientation = as.factor(substr(scanner, 5, 5)), 
-         hour = hour(date),
-         minute = minute(date)) %>%
-  filter(minute == 0, hour %in% c("00", "06", "12", "18"))
+         orientation = as.factor(substr(scanner, 5, 5)))
 
+duplicate_date <- root_density_raw %>%
+  group_by(scanner, year, month, day, hour) %>%
+  reframe(has_00 = any(minute == "00")) %>% ungroup()
+
+root_density_raw <- root_density_raw %>%
+  left_join(duplicate_date, 
+            by = c("scanner","year","month","day","hour")) %>%
+  mutate(minute = if_else(minute == "01" & !has_00, "00", minute),
+    date = ymd_hm(paste(year, month, day, hour, minute))
+  ) %>%select(-has_00)
+# Some timestamps are recorded at minute = 1 instead of minute = 0.In some cases both exist, in others only minute = 1 exists. We want to correct minute = 1 to 0 only if there is no existing row at minute = 0.
+
+root_density <- root_density_raw %>%
+  filter(minute == "00", hour %in% c("00", "06", "12", "18"))%>%
+  filter(date> "2024-03-01 00:00:00")
 
 
 root_density <- root_density %>%
-  arrange(scanner, date) %>%  
-  group_by(scanner) %>%
+  arrange(depth, position, orientation, date) %>%  
+  group_by(depth, position, orientation,) %>%
   mutate(lag_days = 9,
          date_target = date - days(9),
          date_target_24h = date - days(1)) %>%
   ungroup() %>%
-  left_join(root_density %>% select(scanner, date, root_pixels_count) %>%
+  left_join(root_density %>% select(depth, position, orientation, date, root_pixels_count) %>%
               rename(date_target = date,
                      root_pixels_count_lag = root_pixels_count),
-            by = c("scanner", "date_target"), relationship = "many-to-many") %>%
-  left_join(root_density %>% select(scanner, date, root_pixels_count) %>%
+            by = c("depth", "position", "orientation", "date_target")) %>%
+  left_join(root_density %>% select(depth, position, orientation, date, root_pixels_count) %>%
               rename(date_target_24h = date,
                      root_pixels_count_lag_6h = root_pixels_count),
-            by = c("scanner", "date_target_24h"), relationship = "many-to-many") %>%
+            by = c("depth", "position", "orientation", "date_target_24h")) %>%
   mutate(root_growth_pixel_count = root_pixels_count - root_pixels_count_lag,
          root_mature_pixel_count = root_pixels_count - root_growth_pixel_count,
          root_growth_pixel_count_6h = root_pixels_count - root_pixels_count_lag_6h) %>%
@@ -157,17 +136,14 @@ root_density <- root_density %>%
   ))
 
 
-
 habitat_data <- habitat_data %>%   
   left_join(root_density %>% select(date, position, depth, orientation, root_cm2_count, root_growth_cm2_count, root_mature_cm2_count,root_growth_cm2_count_24h), 
             by = c("date", "position", "depth", "orientation"))
 ```
 
-```{r}
-summary(habitat_data$root_cm2_count)   
-```
+### Distance data transformation
 
-##### Distance data transformation
+Conversion of distance data into cm.
 
 In order to apply the log distribution to the "distances" variables, 0 must be eliminated, so a small offset is applied to all distance values.
 
