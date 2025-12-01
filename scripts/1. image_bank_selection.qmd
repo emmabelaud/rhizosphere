@@ -53,11 +53,10 @@ Correction of minute offset: Some images have a one-minute offset (minute = 01) 
 
 ```{r}
 df <- df %>%
-  mutate(date = ymd_hms(date), 
-      date = if_else(minute(date) == 1 & !any(minute(date) == 0),  
-      date - minutes(1),date), 
-      hour = hour(date),
-      minute = minute(date)) %>%
+  mutate(date = ymd_hms(date),
+    date = if_else(minute(date) == 1, date - minutes(1), date),
+    hour = hour(date),
+    minute = minute(date)) %>%
   filter(minute == 0, hour %in% c(0, 12)) %>%
   select(-hour, -minute)%>%
   mutate(hour = format(date, "%H:%M"))%>%
