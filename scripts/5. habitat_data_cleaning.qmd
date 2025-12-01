@@ -137,7 +137,8 @@ root_density <- root_density %>%
 
 
 habitat_data <- habitat_data %>%   
-  left_join(root_density %>% select(date, position, depth, orientation, root_cm2_count, root_growth_cm2_count, root_mature_cm2_count,root_growth_cm2_count_24h), 
+  left_join(root_density %>% 
+              select(date, position, depth, orientation, root_cm2_count, root_growth_cm2_count, root_mature_cm2_count,root_growth_cm2_count_24h), 
             by = c("date", "position", "depth", "orientation"))
 ```
 
@@ -156,8 +157,46 @@ habitat_data <- habitat_data %>%
          distance_root_mature_exp = (distance_root_mature_exp/pixels_per_cm) + epsilon)
 ```
 
-##### Cleaned data recording
+### Fauna data
 
 ```{r}
-write.csv(habitat_data, "../output/distance_data_cleaned.csv", row.names = FALSE)
+# Creation of an invertebrate abundance variable
+habitat_data <- habitat_data %>%
+  group_by(image_name) %>%
+  mutate(invertebrate_count = n()) %>%
+  ungroup()
+
+# Creation of a predator abundance variable
+predators_count <- habitat_data %>%
+  filter(Predicted.class %in% c("mesostigmata", "pseudoscorpionida", "araneae", "lithobiomorpha", "geophilomorpha")) %>%
+  count(image_name, name = "predators_count")
+
+habitat_data <- habitat_data %>%
+  left_join(predators_count, by = "image_name") %>%
+  mutate(predators_count = replace_na(predators_count, 0))
+
+# Taxon filtering 
+clean_taxon <- function(x) {
+  case_when(
+    x %in% c("pseudosinella", "poduromorpha") ~ "collembola",
+    x %in% c("trombidiformes", "mesostigmata") ~ "acari",
+    TRUE ~ x
+  )
+}
+
+relevant_taxa <- habitat_data %>%
+  mutate(Predicted.class.levelup = clean_taxon(Predicted.class)) %>%
+  count(Predicted.class.levelup) %>%
+  filter(n >= 300, !Predicted.class.levelup %in% c("unknown", "multi_taxa")) %>%
+  pull(Predicted.class.levelup)
+
+habitat_data_filtered <- habitat_data %>%
+  mutate(Predicted.class.levelup = clean_taxon(Predicted.class)) %>%
+  filter(Predicted.class.levelup %in% relevant_taxa)
+```
+
+### Cleaned data recording
+
+```{r}
+write.csv(habitat_data_filtered, "../output/distance_data_cleaned.csv", row.names = FALSE)
 ```
