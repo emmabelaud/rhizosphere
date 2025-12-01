@@ -111,15 +111,22 @@ habitat_data <- habitat_data %>%
 ```{r}
 dpi <- 1200 
 pixels_per_cm <- dpi / 2.54 
-root_density <- read.csv("../data/root_pixels_count.csv")  
-root_density <- root_density %>%
-  mutate(image_name = sub("\\.png$", "", root_density$file)) %>%  
+root_density_raw <- read.csv("../data/root_pixels_count.csv")  
+root_density<- root_density_raw %>%
+  mutate(image_name = sub("\\.png$", "", root_density_raw$file)) %>%  
   separate(file, into = c("bloc", "position", "orientation","year","month", "day", "hour", "minute", "fileextension1"), 
            sep = "_|\\.|H|M.| |-", remove = FALSE)%>%
-  mutate(minute = if_else(minute == "01", "00", minute))%>%
-  filter(hour %in% c("00", "06", "12", "18")) %>%
-  mutate(date = ymd_hm(paste(year, month, day, hour, minute)))%>%
-  mutate(scanner = as.factor(paste(position, orientation, sep = "_")))
+  mutate(date = ymd_hm(paste(year, month, day, hour, minute)), 
+      date = if_else(minute(date) == 1 & !any(minute(date) == 0),  
+      date - minutes(1),date))%>%
+  mutate(scanner = as.factor(paste(position, orientation, sep = "_")),
+         depth = as.factor(substr(scanner, 2, 3)),
+         position = as.factor(substr(scanner, 1, 1)),
+         orientation = as.factor(substr(scanner, 5, 5)), 
+         hour = hour(date),
+         minute = minute(date)) %>%
+  filter(minute == 0, hour %in% c("00", "06", "12", "18"))
+
 
 
 root_density <- root_density %>%
@@ -152,16 +159,12 @@ root_density <- root_density %>%
 
 
 habitat_data <- habitat_data %>%   
-  left_join(root_density %>% select(image_name, root_cm2_count, root_growth_cm2_count, root_mature_cm2_count,root_growth_cm2_count_24h), by = "image_name")
+  left_join(root_density %>% select(date, position, depth, orientation, root_cm2_count, root_growth_cm2_count, root_mature_cm2_count,root_growth_cm2_count_24h), 
+            by = c("date", "position", "depth", "orientation"))
 ```
 
 ```{r}
 summary(habitat_data$root_cm2_count)   
-habitat_data <- habitat_data %>%   
-  mutate(root_density_level = case_when(
-    root_cm2_count> quantile(root_cm2_count,0.75) ~ "high",                         
-    root_cm2_count< quantile(root_cm2_count,0.25) ~ "low",   
-    TRUE ~ "intermediate") )
 ```
 
 ##### Distance data transformation
@@ -180,5 +183,5 @@ habitat_data <- habitat_data %>%
 ##### Cleaned data recording
 
 ```{r}
-write.csv(habitat_data, "../data/distance_data_cleaned.csv", row.names = FALSE)
+write.csv(habitat_data, "../output/distance_data_cleaned.csv", row.names = FALSE)
 ```
