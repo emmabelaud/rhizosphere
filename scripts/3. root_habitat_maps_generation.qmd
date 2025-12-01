@@ -38,12 +38,6 @@ output_raster_dir <- "~/2. THÈSE/6. Analyse/Rhizosphere/Root/tmp"
 if (!dir.exists(output_raster_dir)) dir.create(output_raster_dir, recursive = TRUE)
 ```
 
-Definition of buffer sizes: 236px=0.5cm, 500px=1cm, 945px=2cm
-
-```{r}
-buffer_distances <- c(236, 500, 945)
-```
-
 To eliminate noise, define the minimum surface area of root objects so that they are retained:
 
 ```{r}
@@ -58,7 +52,7 @@ Verification of images already processed
 has_been_processed <- function(image_name) {
   image_basename <- tools::file_path_sans_ext(basename(image_name))
   existing_files <- list.files(output_raster_dir, pattern = "\\.tif$", full.names = TRUE)
-  processed_basenames <- unique(sub("_buffer_.*$", "", sub("_root_.*$", "", sub("\\.tif$", "", basename(existing_files)))))
+  processed_basenames <- unique(sub("_root_.*$", "", sub("\\.tif$", "", basename(existing_files))))
   return(image_basename %in% processed_basenames)
 }
 ```
@@ -94,15 +88,6 @@ convert_and_filter_polygons <- function(image, area_threshold) {
   polygons <- st_as_sf(as.polygons(image)) %>% st_cast("POLYGON", warn = FALSE)
   polygons$area <- st_area(polygons)
   return(polygons %>% filter(area >= area_threshold))
-}
-```
-
-Buffer application
-
-```{r}
-apply_buffer <- function(sf_object, buffer_dist) {
-  message(paste("Applying buffer of", buffer_dist, "units..."))
-  return(st_buffer(sf_object, dist = buffer_dist))
 }
 ```
 
@@ -162,18 +147,6 @@ process_images <- function(past_image_file, current_image_file, area_threshold) 
   
   habitat_variables$raster_root_mature <- convert_to_raster(habitat_variables$root_mature, root_mature)
   habitat_variables$raster_root_growth <- convert_to_raster(habitat_variables$root_growth, root_growth)
-  
-  for (dist in buffer_distances) {
-    buffer_name <- paste0("buffer_mature_", dist)
-    habitat_variables[[buffer_name]] <- apply_buffer(habitat_variables$root_mature, dist)
-    raster_name <- paste0("raster_", buffer_name)
-    habitat_variables[[raster_name]] <- convert_to_raster(habitat_variables[[buffer_name]], root_mature)
-    
-    buffer_name_growth <- paste0("buffer_growth_", dist)
-    habitat_variables[[buffer_name_growth]] <- apply_buffer(habitat_variables$root_growth, dist)
-    raster_name_growth <- paste0("raster_", buffer_name_growth)
-    habitat_variables[[raster_name_growth]] <- convert_to_raster(habitat_variables[[buffer_name_growth]], root_growth)
-  }
   
   habitat_variables$distance_root_mature <- generate_distance_map(habitat_variables$raster_root_mature)
   habitat_variables$distance_root_growth <- generate_distance_map(habitat_variables$raster_root_growth)
@@ -237,13 +210,9 @@ for (scanner in unique(df_images$scanner)) {
     message("Processing: ", basename(current_file), " vs ", basename(past_file))
     processed <- process_images(past_file, current_file, area_threshold = area_threshold)
     
-    # Save raster outputs
+    # Sauvegarde des rasters
     save_raster(processed$raster_root_mature, current_basename, "root_mature")
     save_raster(processed$raster_root_growth, current_basename, "root_growth")
-    for (dist in buffer_distances) {
-      save_raster(processed[[paste0("raster_buffer_mature_", dist)]], current_basename, paste0("buffer_mature_", dist))
-      save_raster(processed[[paste0("raster_buffer_growth_", dist)]], current_basename, paste0("buffer_growth_", dist))
-    }
     save_raster(processed$distance_root_mature, current_basename, "distance_root_mature")
     save_raster(processed$distance_root_growth, current_basename, "distance_root_growth")
   }
