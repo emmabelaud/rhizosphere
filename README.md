@@ -36,6 +36,6 @@ Invertebrate occurrence data were spatially overlaid onto the root distance maps
 
 The adjacent script was used to generate a well-formatted database required for data analysis. It allows the database to be enriched with the necessary metadata, including microclimate sensor data (soil temperature and humidity recorded every 15 minutes) and the computation of their 24-hour amplitude values. It also incorporates data related to root resource availability, such as the overall root density in each image, quantified from the root pixel count in the binary images, and their temporal dynamics, calculated as the change in root pixel count between successive images taken 24 hours apart. Additionally, the database includes invertebrate density metrics, including total invertebrate abundance per image and predator abundance per image. The resulting database, named **"distance_data_cleaned"**, is ready for data analysis and is available in the output folder.
 
-5.  [data_analysis](https://github.com/emmabelaud/rhizosphere/blob/df878ee7ec79c6107b54b8dd61caa8784b18dd74/scripts/6.%20data_analysis.qmd)
+6.  [data_analysis](https://github.com/emmabelaud/rhizosphere/blob/df878ee7ec79c6107b54b8dd61caa8784b18dd74/scripts/6.%20data_analysis.qmd)
 
 This script allows performing the analyses presented in the corresponding manuscript and automatically generates the associated graphics in the output folder.
