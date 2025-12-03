@@ -534,10 +534,8 @@ kable_rf_results <- rf_summary_wide_meta %>%
 
 
 save_kable(kable_rf_results, "../output/S1_table_rf_results.html")
-webshot("../output/S1_table_rf_results.html",
-        file = "../output/S1_table_rf_results.png", zoom = 2)
-
-dev.off()
+invisible(webshot("../output/S1_table_rf_results.html",
+        file = "../output/S1_table_rf_results.png", zoom = 2))
 ```
 
 ## 3. Environmental context and spatial organization
