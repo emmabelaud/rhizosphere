@@ -110,15 +110,19 @@ root_density <- root_density %>%
          date_target = date - days(9),
          date_target_24h = date - days(1)) %>%
   ungroup() %>%
-  left_join(root_density %>% select(depth, position, orientation, date, root_pixels_count) %>%
+  left_join(root_density %>% 
+              select(depth, position, orientation, date, root_pixels_count) %>%
               rename(date_target = date,
                      root_pixels_count_lag = root_pixels_count),
             by = c("depth", "position", "orientation", "date_target")) %>%
-  left_join(root_density %>% select(depth, position, orientation, date, root_pixels_count) %>%
+  left_join(root_density %>% 
+              select(depth, position, orientation, date, root_pixels_count) %>%
               rename(date_target_24h = date,
                      root_pixels_count_lag_6h = root_pixels_count),
             by = c("depth", "position", "orientation", "date_target_24h")) %>%
   mutate(root_growth_pixel_count = root_pixels_count - root_pixels_count_lag,
+         root_growth_pixel_count = case_when(root_growth_pixel_count < 0 ~ 0,
+    TRUE ~ root_growth_pixel_count), #when negative pixel count, update to 0
          root_mature_pixel_count = root_pixels_count - root_growth_pixel_count,
          root_growth_pixel_count_6h = root_pixels_count - root_pixels_count_lag_6h) %>%
   mutate(root_cm2_count = root_pixels_count / (pixels_per_cm^2),
@@ -127,11 +131,27 @@ root_density <- root_density %>%
          root_growth_cm2_count_24h = (root_growth_pixel_count_6h / (pixels_per_cm^2))/24)%>%
   mutate(root_growth_cm2_count_24h = case_when(
     root_growth_cm2_count_24h < 0 ~ 0,
-    TRUE ~ root_growth_cm2_count_24h
-  ))
+    TRUE ~ root_growth_cm2_count_24h))
 
 
 habitat_data <- habitat_data %>%   
+  left_join(root_density %>% 
+              select(image_name, root_cm2_count, root_growth_cm2_count, root_mature_cm2_count,root_growth_cm2_count_24h), 
+            by = c("image_name"))
+
+habitat_data %>%   
+  left_join(root_density %>% 
+              select(image_name, root_growth_pixel_count, root_mature_pixel_count), 
+            by = c("image_name"))%>%
+  mutate(root_growth_surface_prop = root_growth_pixel_count/(14032*10200),
+          root_mature_surface_prop = root_mature_pixel_count/(14032*10200))%>%
+  summary()
+```
+
+### Root surface proportion calculation
+
+```{r}
+surface_prop <- habitat_data %>%   
   left_join(root_density %>% 
               select(image_name, root_cm2_count, root_growth_cm2_count, root_mature_cm2_count,root_growth_cm2_count_24h), 
             by = c("image_name"))
