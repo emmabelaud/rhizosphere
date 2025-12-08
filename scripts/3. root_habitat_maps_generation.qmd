@@ -27,14 +27,14 @@ Sys.setenv(GDAL_PAM_ENABLED = "NO")
 Path to segmented images:
 
 ```{r}
-dataset_dir <- "~/2. THÈSE/6. Analyse/Rhizosphere/Root/sample_seg"
+dataset_dir <- "/media/ebelaud/INTENSO/rhizosphere_image_bank"
 image_files <- list.files(dataset_dir, pattern = "\\.png$", full.names = TRUE)
 ```
 
 Path to generated images:
 
 ```{r}
-output_raster_dir <- "~/2. THÈSE/6. Analyse/Rhizosphere/Root/tmp"
+output_raster_dir <- "/media/ebelaud/INTENSO/output_raster"
 if (!dir.exists(output_raster_dir)) dir.create(output_raster_dir, recursive = TRUE)
 ```
 
@@ -182,8 +182,8 @@ df_images <- data.frame(
 ```
 
 ```{r}
-for (scanner in unique(df_images$scanner)) {
-  df_scanner <- filter(df_images, scanner == scanner)
+for (scan in unique(df_images$scanner)) {
+  df_scanner <- filter(df_images, scanner == scan)
   
   for (i in seq_len(nrow(df_scanner))) {
     current_file <- df_scanner$file[i]
