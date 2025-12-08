@@ -77,6 +77,16 @@ habitat_data_raw <- read.csv("../output/distance_data_cleaned.csv") %>%
     mutate(land_use = position)
 habitat_data_raw$date <- parse_date_time(habitat_data_raw$date,orders = c("Y-m-d H:M:S", "Y-m-d"), tz = "UTC")
 
+#period
+target_dates <- tibble( period = 1:7, start_date = as.Date(c("2024-03-20", "2024-05-25", "2024-07-15", "2024-09-19", "2024-12-10", "2025-02-15", "2025-04-20")))
+habitat_data_raw <- habitat_data_raw %>%
+  crossing(target_dates) %>%                
+  filter(date >= start_date) %>%            
+  group_by(date) %>%                         
+  slice_max(start_date, n = 1) %>%           
+  ungroup()
+
+
 #df joint
 df_raw <- habitat_data_raw %>%
   mutate(
@@ -92,7 +102,7 @@ prep_df <- function(taxon = NA) {
   
   df %>%
     group_by(
-      image_name, root_type, invertebrate_count, predators_count,
+      image_name, scanner, period, root_type, invertebrate_count, predators_count,
       land_use, depth,
       root_cm2_count, root_growth_cm2_count_24h, temp, hum,
       temp_soil_amplitude, hum_soil_amplitude
@@ -219,7 +229,9 @@ dev.off()
 Factor contributions and explained variance in Random Forest models. Bar plots: Contribution of factors (IncMSE). Pie charts: Relative proportion of variance explained for spatial patterns - selection or avoidance degree - of invertebrate activity relative to roots, according to root developmental stage - growing or mature.
 
 ```{r}
-run_rf_combined <- function(data, root, signe) {
+run_rf_bootstrap <- function(data, root, signe, test_prop = 0.2, n_boot = 50, seed = 123) {
+  set.seed(seed)
+  
   data_sub <- data %>%
     filter(root_type == root,
            if (signe == "pos") diff > 0 else diff < 0) %>%
@@ -228,81 +240,186 @@ run_rf_combined <- function(data, root, signe) {
   
   if (nrow(data_sub) < 10) return(NULL)
   
-  obs_id <- data_sub$image_name
+  data_sub <- data_sub %>%
+    mutate(group_id = interaction(period, scanner, drop = TRUE))
   
-  rf <- ranger(
-    formula = diff ~ root_cm2_count + root_growth_cm2_count_24h + temp +
-      temp_soil_amplitude + hum + hum_soil_amplitude +
-      invertebrate_count + predators_count,
-    data = data_sub,
-    num.trees = 500
-  )
+  bootstrap_results <- vector("list", n_boot)
   
-  unified <- ranger.unify(rf, data_sub %>% select(-diff))
-  shap_values <- treeshap(unified, data_sub %>% select(-diff))
-  
-  # Average importance per variable
-  importance_df <- as.data.frame(colMeans(abs(shap_values$shaps))) %>%
-    tibble::rownames_to_column("variable") %>%
-    rename(importance = 2) %>%
-    mutate(
-      explained_variance = pmax(0, 1 - rf$prediction.error / var(data_sub$diff)),
-      root_type = root,
-      signe = signe
+  for (b in seq_len(n_boot)) {
+    # Sélection aléatoire train/test par groupe
+    test_idx <- data_sub %>%
+      group_by(group_id) %>%
+      group_map(~ {
+        n_g <- nrow(.x)
+        sample(seq_len(n_g), size = max(1, floor(test_prop * n_g)))
+      }) %>%
+      unlist()
+    
+    data_test  <- data_sub[test_idx, ]
+    data_train <- data_sub[-test_idx, ]
+    
+    if (nrow(data_train) < 5 || nrow(data_test) < 1) next
+    
+    rf <- ranger(
+      formula = diff ~ root_cm2_count + root_growth_cm2_count_24h + temp +
+        temp_soil_amplitude + hum + hum_soil_amplitude +
+        invertebrate_count + predators_count,
+      data = data_train,
+      num.trees = 500
     )
-  
-  # SHAP per observation
-  shap_long <- shap_values$shaps %>%
-    as.data.frame() %>%
-    tibble::rownames_to_column("row_id") %>%
-    pivot_longer(-row_id, names_to = "variable", values_to = "shap") %>%
-    mutate(
-      image_name = obs_id[as.integer(row_id)],
+    
+    pred_train <- predict(rf, data_train)$predictions
+    pred_test  <- predict(rf, data_test)$predictions
+    
+    train_mse <- mean((data_train$diff - pred_train)^2)
+    test_mse  <- mean((data_test$diff - pred_test)^2)
+    
+    unified <- ranger.unify(rf, data_train %>% select(-diff))
+    shap_values <- treeshap(unified, data_train %>% select(-diff))
+    
+    importance_df <- as.data.frame(colMeans(abs(shap_values$shaps))) %>%
+      tibble::rownames_to_column("variable") %>%
+      rename(importance = 2) %>%
+      mutate(
+        explained_variance = pmax(0, 1 - rf$prediction.error / var(data_train$diff)),
+        root_type = root,
+        signe = signe,
+        train_mse = train_mse,
+        test_mse = test_mse,
+        bootstrap = b
+      )
+    
+    shap_long <- shap_values$shaps %>%
+      as.data.frame() %>%
+      tibble::rownames_to_column("row_id") %>%
+      pivot_longer(-row_id, names_to = "variable", values_to = "shap") %>%
+      mutate(
+        image_name = data_train$image_name[as.integer(row_id)],
+        root_type = root,
+        signe = signe,
+        bootstrap = b
+      )
+    
+    meta_df <- tibble(
       root_type = root,
-      signe = signe
+      signe = signe,
+      n_obs = nrow(data_sub),
+      num_trees = rf$num.trees,
+      num_variables = rf$num.independent.variables,
+      oob_error = rf$prediction.error,
+      explained_variance = pmax(0, 1 - rf$prediction.error / var(data_train$diff)),
+      train_mse = train_mse,
+      test_mse = test_mse,
+      n_train = nrow(data_train),
+      n_test = nrow(data_test),
+      bootstrap = b
     )
+    
+    bootstrap_results[[b]] <- list(
+      importance = importance_df,
+      shap = shap_long,
+      meta = meta_df
+    )
+  }
   
-  meta_df <- tibble(
-    root_type = root,
-    signe = signe,
-    n_obs = rf$num.samples,
-    num_trees = rf$num.trees,
-    num_variables = rf$num.independent.variables,
-    oob_error = rf$prediction.error,
-    explained_variance = pmax(0, 1 - rf$prediction.error / var(data_sub$diff))
+  # Combiner les résultats
+  bootstrap_results <- purrr::compact(bootstrap_results)
+  if(length(bootstrap_results) == 0) return(NULL)
+  
+  list(
+    importance = map_dfr(bootstrap_results, ~ .x$importance),
+    shap       = map_dfr(bootstrap_results, ~ .x$shap),
+    meta       = map_dfr(bootstrap_results, ~ .x$meta)
   )
-  
-  return(list(importance = importance_df, shap = shap_long, meta = meta_df))
 }
 
 
-results_all <- map(names(df_list), function(taxon) {
+
+
+invisible(results_all_boot <- map(names(df_list), function(taxon) {
   combos <- expand.grid(
     root_type = c("growth", "mature"),
     signe = c("pos", "neg"),
     stringsAsFactors = FALSE
   ) %>% as_tibble()
-
-  runs <- pmap(combos, function(root_type, signe) run_rf_combined(df_list[[taxon]], root_type, signe))
+  
+  # Pour chaque combinaison, faire le bootstrap
+  runs <- pmap(combos, function(root_type, signe) {
+    run_rf_bootstrap(df_list[[taxon]], root_type, signe, n_boot = 50)
+  })
+  
   runs <- purrr::compact(runs)
-
+  
   if(length(runs) == 0) {
-    return(list(importance = tibble(), shap = tibble(), meta = tibble()))
+    return(list(
+      importance = tibble(),
+      shap       = tibble(),
+      meta       = tibble()
+    ))
   }
-
+  
+  # Moyenne des importances et des MSE sur les bootstraps
+  importance_avg <- map_dfr(runs, ~ .x$importance) %>%
+    group_by(variable, root_type, signe) %>%
+    summarise(
+      importance = mean(importance),
+      explained_variance = mean(explained_variance),
+      train_mse = mean(train_mse),
+      test_mse  = mean(test_mse),
+      .groups = "drop"
+    ) %>%
+    mutate(taxon = taxon)
+  
+  # Moyenne des SHAP
+  shap_avg <- map_dfr(runs, ~ .x$shap) %>%
+    group_by(variable, image_name, root_type, signe) %>%
+    summarise(
+      shap = mean(shap),
+      .groups = "drop"
+    ) %>%
+    mutate(taxon = taxon)
+  
+  # Moyenne des meta
+  meta_avg <- map_dfr(runs, ~ .x$meta) %>%
+    group_by(root_type, signe) %>%
+    summarise(
+      n_obs = mean(n_obs),
+      num_trees = mean(num_trees),
+      num_variables = mean(num_variables),
+      oob_error = mean(oob_error),
+      explained_variance = mean(explained_variance),
+      train_mse = mean(train_mse),
+      test_mse = mean(test_mse),
+      n_train = mean(n_train),
+      n_test  = mean(n_test),
+      .groups = "drop"
+    ) %>%
+    mutate(taxon = taxon)
+  
   list(
-    importance = map_dfr(runs, ~ .x$importance) %>% mutate(taxon = taxon),
-    shap       = map_dfr(runs, ~ .x$shap)       %>% mutate(taxon = taxon),
-    meta       = map_dfr(runs, ~ .x$meta)       %>% mutate(taxon = taxon)
+    importance = importance_avg,
+    shap       = shap_avg,
+    meta       = meta_avg
   )
-})
+}))
 
+# Combinaison finale
+rf_results_all   <- map_dfr(results_all_boot, "importance")
+shap_results_all <- map_dfr(results_all_boot, "shap")
+rf_meta_all      <- map_dfr(results_all_boot, "meta")
 
-rf_results_all   <- map_dfr(results_all, "importance")
-shap_results_all <- map_dfr(results_all, "shap")
-rf_meta_all      <- map_dfr(results_all, "meta")
 
 ```
+
+```{r}
+rf_meta_all %>%
+  select(taxon, root_type, signe,n_obs, train_mse, n_train, test_mse, n_test)%>%
+  ggplot(aes(taxon))+
+  geom_point(aes(y=train_mse), color = "orange")+
+  geom_point(aes(y=test_mse), color = "red")+
+  facet_grid(root_type ~ signe)
+```
+
 
 ```{r}
 # Harmonisation of columns 
@@ -385,7 +502,9 @@ graph_legende <- ggplot(palette_df, aes(x = type_variable, y=0, fill = Factors))
 combinations <- expand.grid(
   behavior = unique(rf_results_all$behavior),
   root = unique(rf_results_all$root),
-  stringsAsFactors = FALSE)
+  stringsAsFactors = FALSE)%>%
+  mutate(behavior = factor(behavior, levels = c("avoidance", "selection")))%>%
+  arrange(root,behavior)
 taxon_order <- c("gastropoda", "collembola", "acari")
 plots_list <- list()
 
