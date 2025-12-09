@@ -420,7 +420,6 @@ rf_meta_all %>%
   facet_grid(root_type ~ signe)
 ```
 
-
 ```{r}
 # Harmonisation of columns 
 rf_results_all <- rf_results_all %>%
