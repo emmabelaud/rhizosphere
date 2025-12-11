@@ -169,7 +169,9 @@ habitat_data <- habitat_data %>%
   mutate(distance_root_growth_obs = (distance_root_growth_obs/pixels_per_cm) + epsilon,         
          distance_root_mature_obs = (distance_root_mature_obs/pixels_per_cm) + epsilon,
          distance_root_growth_exp = (distance_root_growth_exp/pixels_per_cm) + epsilon,         
-         distance_root_mature_exp = (distance_root_mature_exp/pixels_per_cm) + epsilon)
+         distance_root_mature_exp = (distance_root_mature_exp/pixels_per_cm) + epsilon,
+         distance_root_growth_sd_exp = (distance_root_growth_sd_exp/pixels_per_cm) + epsilon,         
+         distance_root_mature_sd_exp = (distance_root_mature_sd_exp/pixels_per_cm) + epsilon)
 ```
 
 ### Fauna data
