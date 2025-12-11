@@ -35,7 +35,7 @@ selected_vars <- c("distance_root_growth", "distance_root_mature")
 ### Load habitat raster files
 
 ```{r}
-tif_dir <- "E:/output_raster"
+tif_dir <- "/media/ebelaud/INTENSO/output_raster"
 tif_files <- list.files(path = tif_dir, pattern = "\\.tif$", full.names = TRUE)
 ```
 
