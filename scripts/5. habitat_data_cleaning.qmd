@@ -16,7 +16,7 @@ if (!dir.exists("../output")) {
 library(tidyverse)
 library(data.table)
 
-habitat_data_raw <- read.csv("../data/distance_habitat_data.csv") 
+habitat_data_raw <- read.csv("../data/distance_data.csv") 
 habitat_data <- habitat_data_raw %>% 
   dplyr::select(-ID) %>%  
   drop_na()

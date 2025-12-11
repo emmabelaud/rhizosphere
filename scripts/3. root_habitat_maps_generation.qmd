@@ -27,14 +27,14 @@ Sys.setenv(GDAL_PAM_ENABLED = "NO")
 Path to segmented images:
 
 ```{r}
-dataset_dir <- "/media/ebelaud/INTENSO/rhizosphere_image_bank"
+dataset_dir <- "/media/Intensio/rhizosphere_image_bank"
 image_files <- list.files(dataset_dir, pattern = "\\.png$", full.names = TRUE)
 ```
 
 Path to generated images:
 
 ```{r}
-output_raster_dir <- "/media/ebelaud/INTENSO/output_raster"
+output_raster_dir <- "/media/Intensio/output_raster"
 if (!dir.exists(output_raster_dir)) dir.create(output_raster_dir, recursive = TRUE)
 ```
 
