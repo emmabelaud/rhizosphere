@@ -229,7 +229,7 @@ dev.off()
 Factor contributions and explained variance in Random Forest models. Bar plots: Contribution of factors (IncMSE). Pie charts: Relative proportion of variance explained for spatial patterns - selection or avoidance degree - of invertebrate activity relative to roots, according to root developmental stage - growing or mature.
 
 ```{r}
-run_rf_bootstrap <- function(data, root, signe, test_prop = 0.2, n_boot = 50, seed = 123) {
+run_rf_bootstrap <- function(data, root, signe, test_prop = 0.2, n_boot = 10, seed = 123) {
   set.seed(seed)
   
   data_sub <- data %>%
@@ -345,7 +345,7 @@ invisible(results_all_boot <- map(names(df_list), function(taxon) {
   
   # Pour chaque combinaison, faire le bootstrap
   runs <- pmap(combos, function(root_type, signe) {
-    run_rf_bootstrap(df_list[[taxon]], root_type, signe, n_boot = 50)
+    run_rf_bootstrap(df_list[[taxon]], root_type, signe)
   })
   
   runs <- purrr::compact(runs)
