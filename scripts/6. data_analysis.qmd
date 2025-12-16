@@ -93,7 +93,8 @@ df_raw <- habitat_data_raw %>%
     mature = distance_root_mature_obs - distance_root_mature_exp,
     growth = distance_root_growth_obs - distance_root_growth_exp
   ) %>%
-  pivot_longer(cols = c(mature, growth), names_to = "root_type", values_to = "diff")
+  pivot_longer(cols = c(mature, growth), names_to = "root_type", values_to = "diff")%>%
+  mutate(behavior = case_when(diff > 0 ~ "avoidance", diff < 0 ~ "selection"))
 
 taxa <- c(collembola = "collembola", acari = "acari", gastropoda = "gastropoda")
 
@@ -103,14 +104,13 @@ prep_df <- function(taxon = NA) {
   df %>%
     group_by(
       image_name, scanner, period, root_type, invertebrate_count, predators_count,
-      land_use, depth,
+      land_use, depth,behavior,
       root_cm2_count, root_growth_cm2_count_24h, temp, hum,
       temp_soil_amplitude, hum_soil_amplitude
     ) %>%
     summarise(diff = mean(diff), .groups = "drop") %>%
     filter(!is.na(diff), land_use %in% c("A","C")) %>%
     mutate(
-      behavior = case_when(diff > 0 ~ "avoidance", diff < 0 ~ "selection"),
       across(c(land_use, depth, root_type, behavior), as.factor)
     ) %>%
     mutate(across(
@@ -229,12 +229,12 @@ dev.off()
 Factor contributions and explained variance in Random Forest models. Bar plots: Contribution of factors (IncMSE). Pie charts: Relative proportion of variance explained for spatial patterns - selection or avoidance degree - of invertebrate activity relative to roots, according to root developmental stage - growing or mature.
 
 ```{r}
-run_rf_bootstrap <- function(data, root, signe, test_prop = 0.2, n_boot = 50, seed = 123) {
+run_rf_bootstrap <- function(data, root, signe, test_prop = 0.2, n_boot = 10, seed = 123) {
   set.seed(seed)
   
   data_sub <- data %>%
     filter(root_type == root,
-           if (signe == "pos") diff > 0 else diff < 0) %>%
+           behavior == signe) %>%
     mutate(across(where(is.character), as.factor)) %>%
     drop_na()
   
@@ -283,7 +283,7 @@ run_rf_bootstrap <- function(data, root, signe, test_prop = 0.2, n_boot = 50, se
       mutate(
         explained_variance = pmax(0, 1 - rf$prediction.error / var(data_train$diff)),
         root_type = root,
-        signe = signe,
+        behavior = signe,
         train_mse = train_mse,
         test_mse = test_mse,
         bootstrap = b
@@ -296,13 +296,13 @@ run_rf_bootstrap <- function(data, root, signe, test_prop = 0.2, n_boot = 50, se
       mutate(
         image_name = data_train$image_name[as.integer(row_id)],
         root_type = root,
-        signe = signe,
+        behavior = signe,
         bootstrap = b
       )
     
     meta_df <- tibble(
       root_type = root,
-      signe = signe,
+      behavior = signe,
       n_obs = nrow(data_sub),
       num_trees = rf$num.trees,
       num_variables = rf$num.independent.variables,
@@ -339,13 +339,13 @@ run_rf_bootstrap <- function(data, root, signe, test_prop = 0.2, n_boot = 50, se
 invisible(results_all_boot <- map(names(df_list), function(taxon) {
   combos <- expand.grid(
     root_type = c("growth", "mature"),
-    signe = c("pos", "neg"),
+    behavior = c("avoidance", "selection"),
     stringsAsFactors = FALSE
   ) %>% as_tibble()
   
   # Pour chaque combinaison, faire le bootstrap
-  runs <- pmap(combos, function(root_type, signe) {
-    run_rf_bootstrap(df_list[[taxon]], root_type, signe, n_boot = 50)
+  runs <- pmap(combos, function(root_type, behavior) {
+    run_rf_bootstrap(df_list[[taxon]], root_type, behavior)
   })
   
   runs <- purrr::compact(runs)
@@ -360,7 +360,7 @@ invisible(results_all_boot <- map(names(df_list), function(taxon) {
   
   # Moyenne des importances et des MSE sur les bootstraps
   importance_avg <- map_dfr(runs, ~ .x$importance) %>%
-    group_by(variable, root_type, signe) %>%
+    group_by(variable, root_type, behavior) %>%
     summarise(
       importance = mean(importance),
       explained_variance = mean(explained_variance),
@@ -372,7 +372,7 @@ invisible(results_all_boot <- map(names(df_list), function(taxon) {
   
   # Moyenne des SHAP
   shap_avg <- map_dfr(runs, ~ .x$shap) %>%
-    group_by(variable, image_name, root_type, signe) %>%
+    group_by(variable, image_name, root_type, behavior) %>%
     summarise(
       shap = mean(shap),
       .groups = "drop"
@@ -381,7 +381,7 @@ invisible(results_all_boot <- map(names(df_list), function(taxon) {
   
   # Moyenne des meta
   meta_avg <- map_dfr(runs, ~ .x$meta) %>%
-    group_by(root_type, signe) %>%
+    group_by(root_type, behavior) %>%
     summarise(
       n_obs = mean(n_obs),
       num_trees = mean(num_trees),
@@ -413,19 +413,17 @@ rf_meta_all      <- map_dfr(results_all_boot, "meta")
 
 ```{r}
 rf_meta_all %>%
-  select(taxon, root_type, signe,n_obs, train_mse, n_train, test_mse, n_test)%>%
+  select(taxon, root_type, behavior,n_obs, train_mse, n_train, test_mse, n_test)%>%
   ggplot(aes(taxon))+
   geom_point(aes(y=train_mse), color = "orange")+
   geom_point(aes(y=test_mse), color = "red")+
-  facet_grid(root_type ~ signe)
+  facet_grid(root_type ~ behavior)
 ```
 
 ```{r}
 # Harmonisation of columns 
 rf_results_all <- rf_results_all %>%
-  mutate(
-    behavior = recode(signe, pos = "avoidance", neg = "selection"),
-    root = recode(root_type,
+  mutate( root = recode(root_type,
                     growth = "growing roots",
                     mature = "mature roots"),
     behavior = factor(behavior, levels = c("selection", "avoidance")),
@@ -433,9 +431,7 @@ rf_results_all <- rf_results_all %>%
     taxon = factor(taxon, levels = c("acari", "collembola", "gastropoda"))
   ) 
 rf_meta_all <- rf_meta_all %>%
-  mutate(
-    behavior = recode(signe, pos = "avoidance", neg = "selection"),
-    root = recode(root_type,
+  mutate( root = recode(root_type,
                     growth = "growing roots",
                     mature = "mature roots"),
     behavior = factor(behavior, levels = c("selection", "avoidance")),
@@ -662,9 +658,7 @@ Heatmaps of significant interactions between habitat-scale context factors and l
 
 ```{r}
 shap_results_all <- shap_results_all %>%
-  mutate(
-    behavior = recode(signe,pos = "avoidance",neg = "selection"),
-    root_type = recode(root_type,
+  mutate( root_type = recode(root_type,
                     growth = "growing roots",
                     mature = "mature roots"),
     behavior = factor(behavior, levels = c("avoidance","selection")),
