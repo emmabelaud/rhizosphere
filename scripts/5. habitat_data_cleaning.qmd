@@ -159,6 +159,49 @@ surface_prop <- habitat_data %>%
 
 ### Distance data transformation
 
+Outliers analysis : filter all images concerned
+
+```{r}
+# Identify target variables: Select all columns starting with "distance_" 
+vars_to_analyze <- habitat_data %>% 
+  select(starts_with("distance_")) %>% 
+  names()
+
+# Define a function to detect outliers based on the IQR (Interquartile Range) method
+# Note: Using a multiplier of 3 (instead of 1.5) identifies "extreme" outliers
+identify_outliers_iqr <- function(data, var_name) {
+  x <- data[[var_name]]
+  
+  q1 <- quantile(x, 0.25, na.rm = TRUE)
+  q3 <- quantile(x, 0.75, na.rm = TRUE)
+  iqr <- q3 - q1
+  
+  lower_bound <- q1 - 3 * iqr
+  upper_bound <- q3 + 3 * iqr
+  
+  # Return rows where the variable value falls outside these bounds
+  data %>%
+    filter(get(var_name) < lower_bound | get(var_name) > upper_bound)
+}
+
+# Batch processing: Iterate through the variable list to create 
+# a named list of dataframes, each containing outliers for a specific variable
+outliers_iqr_list <- vars_to_analyze %>%
+  set_names() %>%
+  map(~identify_outliers_iqr(habitat_data_raw, .x))
+
+# Extract "image_name" from specific SD (Standard Deviation) 
+# expectation variables to create a "blacklist" of problematic images
+outlier_images_to_filter <- outliers_iqr_list[c("distance_root_growth_sd_exp", "distance_root_mature_sd_exp")] %>%
+  bind_rows() %>%           # Combine the outlier dataframes into one
+  select(image_name) %>%    # Focus only on the image identifiers
+  distinct()                # Remove duplicate image names to ensure a unique list
+
+# Remove any row from the original dataset that belongs to the identified outlier images
+habitat_data <- habitat_data %>%
+  filter(!image_name %in% outlier_images_to_filter$image_name)
+```
+
 Conversion of distance data into cm.
 
 In order to apply the log distribution to the "distances" variables, 0 must be eliminated, so a small offset is applied to all distance values.
@@ -166,12 +209,12 @@ In order to apply the log distribution to the "distances" variables, 0 must be e
 ```{r}
 epsilon <- 1e-6 
 habitat_data <- habitat_data %>%   
-  mutate(distance_root_growth_obs = (distance_root_growth_obs/pixels_per_cm) + epsilon,         
-         distance_root_mature_obs = (distance_root_mature_obs/pixels_per_cm) + epsilon,
-         distance_root_growth_exp = (distance_root_growth_exp/pixels_per_cm) + epsilon,         
-         distance_root_mature_exp = (distance_root_mature_exp/pixels_per_cm) + epsilon,
-         distance_root_growth_sd_exp = (distance_root_growth_sd_exp/pixels_per_cm) + epsilon,         
-         distance_root_mature_sd_exp = (distance_root_mature_sd_exp/pixels_per_cm) + epsilon)
+  mutate(
+    across(
+      starts_with("distance_root"),
+      ~ as.numeric(scale((log(.x + epsilon) / pixels_per_cm)))
+    )
+  )
 ```
 
 ### Fauna data
@@ -210,6 +253,8 @@ relevant_taxa <- habitat_data %>%
 habitat_data_filtered <- habitat_data %>%
   mutate(Predicted.class.levelup = clean_taxon(Predicted.class)) %>%
   filter(Predicted.class.levelup %in% relevant_taxa)
+
+hist(habitat_data_filtered$distance_root_mature_sd_exp)
 ```
 
 ### Cleaned data recording
