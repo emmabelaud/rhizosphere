@@ -93,29 +93,54 @@ df_raw <- habitat_data_raw %>%
     mature = distance_root_mature_obs - distance_root_mature_exp,
     growth = distance_root_growth_obs - distance_root_growth_exp
   ) %>%
-  pivot_longer(cols = c(mature, growth), names_to = "root_type", values_to = "diff")%>%
-  mutate(behavior = case_when(diff > 0 ~ "avoidance", diff < 0 ~ "selection"))
+  pivot_longer(cols = c(mature, growth), names_to = "root_type", values_to = "diff")
 
 taxa <- c(collembola = "collembola", acari = "acari", gastropoda = "gastropoda")
 
 prep_df <- function(taxon = NA) {
-  df <- if (!is.na(taxon)) df_raw %>% filter(Predicted.class.levelup == taxon) else df_raw
-  
-  df %>%
-    group_by(
-      image_name, scanner, period, root_type, invertebrate_count, predators_count,
-      land_use, depth,behavior,
-      root_cm2_count, root_growth_cm2_count_24h, temp, hum,
-      temp_soil_amplitude, hum_soil_amplitude
+
+  df <- if (!is.na(taxon)) {
+    df_raw %>% filter(Predicted.class.levelup == taxon)
+  } else df_raw
+
+  # Abondance par image
+  abundance <- df %>%
+    reframe(abundance = n(), .by = image_name)
+
+  # Marginality par image × root_type × behavior
+  marginality <- df %>%
+    reframe(
+      diff = mean(diff, na.rm = TRUE),
+      .by = c(image_name, root_type))
+
+  # Covariables (supposées constantes à ce niveau)
+  covariates <- df %>%
+    select(
+      image_name, scanner, period, root_type,
+      invertebrate_count, predators_count,
+      land_use, depth,
+      root_cm2_count, root_growth_cm2_count_24h,
+      temp, hum, temp_soil_amplitude, hum_soil_amplitude
     ) %>%
-    summarise(diff = mean(diff), .groups = "drop") %>%
-    filter(!is.na(diff), land_use %in% c("A","C")) %>%
+    distinct()
+
+  # Table finale
+  marginality %>%
+    left_join(abundance, by = "image_name") %>%
+    left_join(covariates, by = c("image_name", "root_type")) %>%
+    filter(land_use %in% c("A", "C")) %>%
     mutate(
-      across(c(land_use, depth, root_type, behavior), as.factor)
+      across(c(land_use, depth, root_type), as.factor)
     ) %>%
     mutate(across(
-      c(root_cm2_count,root_growth_cm2_count_24h,temp,hum,temp_soil_amplitude,hum_soil_amplitude,invertebrate_count,predators_count), ~ as.numeric(scale(.x))))
+      c(root_cm2_count, root_growth_cm2_count_24h, temp, hum,
+        temp_soil_amplitude, hum_soil_amplitude,
+        invertebrate_count, predators_count, abundance),
+      ~ as.numeric(scale(.x))
+    ))%>%
+  mutate(behavior = case_when(diff > 0 ~ "avoidance", diff < 0 ~ "selection"))
 }
+
 
 df_list <- map(taxa, prep_df)
 names(df_list) <- names(taxa)
