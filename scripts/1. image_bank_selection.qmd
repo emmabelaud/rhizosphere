@@ -102,8 +102,7 @@ orientation_selection <- orientation_rate %>%
   filter(missing_rate == min(missing_rate))%>%
   pull(orientation)
 cat("Orientation selection :", orientation_selection)
-df_complete <- df_complete %>%
-  filter(orientation %in% orientation_selection)
+#df_complete <- df_complete %>% filter(orientation %in% orientation_selection)
 ```
 
 **Visualisation of filtered data :**
