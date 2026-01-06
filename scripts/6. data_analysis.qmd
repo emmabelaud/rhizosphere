@@ -89,11 +89,19 @@ habitat_data_raw <- habitat_data_raw %>%
 
 #df joint
 df_raw <- habitat_data_raw %>%
-  mutate(
-    mature = distance_root_mature_obs - distance_root_mature_exp,
-    growth = distance_root_growth_obs - distance_root_growth_exp
+  mutate(mature = (distance_root_mature_obs-distance_root_mature_mean_exp)/distance_root_mature_sd_exp,
+    growth = (distance_root_growth_obs - distance_root_growth_mean_exp) / distance_root_growth_sd_exp
   ) %>%
   pivot_longer(cols = c(mature, growth), names_to = "root_type", values_to = "diff")
+
+#filter outliers
+df_raw <- df_raw %>%
+  group_by(root_type) %>% 
+  mutate( Q1 = quantile(diff, 0.25, na.rm = TRUE), Q3 = quantile(diff, 0.75, na.rm = TRUE), IQR = Q3 - Q1) %>%
+  filter(diff >= Q1 - 3 * IQR, diff <= Q3 + 3 * IQR) %>%
+  ungroup() %>%
+  select(-Q1, -Q3, -IQR)
+
 
 taxa <- c(collembola = "collembola", acari = "acari", gastropoda = "gastropoda")
 
@@ -107,11 +115,8 @@ prep_df <- function(taxon = NA) {
   abundance <- df %>%
     reframe(abundance = n(), .by = image_name)
 
-  # Marginality par image × root_type × behavior
-  marginality <- df %>%
-    reframe(
-      diff = mean(diff, na.rm = TRUE),
-      .by = c(image_name, root_type))
+  # Marginality par image × root_type 
+  marginality <- df #%>% reframe(diff = mean(diff, na.rm = TRUE),.by = c(image_name, root_type))
 
   # Covariables (supposées constantes à ce niveau)
   covariates <- df %>%
@@ -127,7 +132,7 @@ prep_df <- function(taxon = NA) {
   # Table finale
   marginality %>%
     left_join(abundance, by = "image_name") %>%
-    left_join(covariates, by = c("image_name", "root_type")) %>%
+    #left_join(covariates, by = c("image_name", "root_type")) %>%
     filter(land_use %in% c("A", "C")) %>%
     mutate(
       across(c(land_use, depth, root_type), as.factor)
@@ -290,7 +295,7 @@ run_rf_bootstrap <- function(data, root, signe, test_prop = 0.2, n_boot = 10, se
         temp_soil_amplitude + hum + hum_soil_amplitude +
         invertebrate_count + predators_count,
       data = data_train,
-      num.trees = 500
+      num.trees = 100
     )
     
     pred_train <- predict(rf, data_train)$predictions
@@ -436,6 +441,8 @@ rf_meta_all      <- map_dfr(results_all_boot, "meta")
 
 ```
 
+### Results model perf
+
 ```{r}
 rf_meta_all %>%
   select(taxon, root_type, behavior,n_obs, train_mse, n_train, test_mse, n_test)%>%
@@ -444,6 +451,8 @@ rf_meta_all %>%
   geom_point(aes(y=test_mse), color = "red")+
   facet_grid(root_type ~ behavior)
 ```
+
+### Results variable contribution
 
 ```{r}
 # Harmonisation of columns 
