@@ -16,7 +16,7 @@ if (!dir.exists("../output")) {
 library(tidyverse)
 library(data.table)
 
-habitat_data_raw <- read.csv("../data/distance_data.csv") 
+habitat_data_raw <- read.csv("../data/distance_habitat_data.csv") 
 habitat_data <- habitat_data_raw %>% 
   dplyr::select(-ID) %>%  
   drop_na()
@@ -144,8 +144,7 @@ habitat_data %>%
               select(image_name, root_growth_pixel_count, root_mature_pixel_count), 
             by = c("image_name"))%>%
   mutate(root_growth_surface_prop = root_growth_pixel_count/(14032*10200),
-          root_mature_surface_prop = root_mature_pixel_count/(14032*10200))%>%
-  summary()
+          root_mature_surface_prop = root_mature_pixel_count/(14032*10200))#%>%summary()
 ```
 
 ### Root surface proportion calculation
@@ -207,14 +206,22 @@ Conversion of distance data into cm.
 In order to apply the log distribution to the "distances" variables, 0 must be eliminated, so a small offset is applied to all distance values.
 
 ```{r}
-epsilon <- 1e-6 
-habitat_data <- habitat_data %>%   
+epsilon <- 1e-6
+
+habitat_data <- habitat_data %>%
   mutate(
     across(
       starts_with("distance_root"),
-      ~ as.numeric(scale((log(.x + epsilon) / pixels_per_cm)))
+      ~ {
+        x <- .x / pixels_per_cm
+        # min-max normalization [-1, 1]
+        x_scaled <- (2 * (x - min(x, na.rm = TRUE)) / (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))) - 1
+        x_scaled
+      }
     )
   )
+
+hist(habitat_data$distance_root_growth_sd_exp)
 ```
 
 ### Fauna data
@@ -253,8 +260,6 @@ relevant_taxa <- habitat_data %>%
 habitat_data_filtered <- habitat_data %>%
   mutate(Predicted.class.levelup = clean_taxon(Predicted.class)) %>%
   filter(Predicted.class.levelup %in% relevant_taxa)
-
-hist(habitat_data_filtered$distance_root_mature_sd_exp)
 ```
 
 ### Cleaned data recording
