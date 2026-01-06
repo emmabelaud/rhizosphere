@@ -192,3 +192,47 @@ write.csv(final_table, output_file, row.names = FALSE)
 writeLines(failed_images, "../data/failed_images.txt")
 ```
 
+Consistency check: processed images vs reference image bank 
+
+```{r}
+# Load the reference list of images expected to be processed
+# (one image per line, with file extension)
+image_bank <- readLines("../output/image_bank.txt")
+
+# Remove the .png extension to match the 'image_name' format
+# used throughout the processing pipeline
+image_bank <- tools::file_path_sans_ext(image_bank)
+
+# Extract the list of unique images actually present in the final dataset
+images_csv <- unique(final_table$image_name)
+
+# Images expected but missing
+
+# Identify images listed in image_bank but absent from the CSV output
+missing_in_csv <- setdiff(image_bank, images_csv)
+
+# Number of missing images
+length(missing_in_csv)
+
+# Names of missing images (likely skipped due to processing errors)
+missing_in_csv
+
+
+# Unexpected images
+# Identify images present in the CSV output but not listed in image_bank
+unexpected_in_csv <- setdiff(images_csv, image_bank)
+
+# Number of unexpected images
+length(unexpected_in_csv)
+
+# Names of unexpected images (potential upstream filtering or naming issue)
+unexpected_in_csv
+
+```
+
+```{r}
+df_a <- read.csv("file_a.csv")
+df_b <- read.csv("file_b.csv")
+
+```
+
