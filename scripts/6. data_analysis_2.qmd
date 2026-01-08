@@ -1,0 +1,298 @@
+---
+title: "Questioning the influence of roots: A soil fauna perspective on rhizosphere space"
+format:
+  html:
+    css: css/styles.css  
+    embed-resources: true
+    code-tools: true
+    
+execute: 
+  warning: false
+  message: false
+  echo: false
+---
+
+## Setupt and data preparation
+
+```{r}
+# Load core libraries
+library(tidyverse)
+library(mgcv)
+library(broom)
+library(gratia)
+library(lubridate)
+
+# Global settings
+set.seed(123)
+if (!dir.exists("../output")) dir.create("../output")
+
+# Ring surface function for density normalization
+ring_surface <- function(r, width) {
+  pi * ((r + width)^2 - r^2)}
+```
+
+```{r}
+# --- DATA IMPORT & CLEANING ---
+habitat_data_raw <- read.csv("../output/distance_data_cleaned.csv") %>%
+  mutate(date = parse_date_time(date, orders = c("Y-m-d H:M:S", "Y-m-d"), tz = "UTC")) %>%
+  filter(position != "B") # Remove control position if not needed
+
+# --- TEMPORAL ALIGNMENT (Periods 1 to 7) ---
+target_dates <- tibble(
+  period = 1:7, 
+  start_date = as.Date(c("2024-03-20", "2024-05-25", "2024-07-15", "2024-09-19", 
+                         "2024-12-10", "2025-02-15", "2025-04-20"))
+)
+
+habitat_data_raw <- habitat_data_raw %>%
+  crossing(target_dates) %>%                
+  filter(date >= start_date) %>%            
+  group_by(date) %>%                         
+  slice_max(start_date, n = 1) %>%           
+  ungroup() 
+
+# --- SCALING & TRANSFORMATION ---
+# Scale environmental predictors and abundance metrics
+habitat_data_scaled <- habitat_data_raw %>%
+  mutate(across(c(depth, period, position), as.factor)) %>%
+  mutate(across(
+    c(root_cm2_count, root_growth_cm2_count_24h, temp, hum, 
+      temp_soil_amplitude, hum_soil_amplitude, invertebrate_count, predators_count),
+    ~ as.numeric(scale(.x))
+  ))
+
+# Pivot to long format for Root-Type comparison (Growth vs Mature)
+habitat_data_long <- habitat_data_scaled %>%
+  select(
+    image_name, temp, hum, period, depth, position, Predicted.class.levelup, root_cm2_count,
+    growth_obs = distance_root_growth_obs,
+    growth_exp = distance_root_growth_mean_exp,
+    growth_sd  = distance_root_growth_sd_exp,
+    mature_obs = distance_root_mature_obs,
+    mature_exp = distance_root_mature_mean_exp,
+    mature_sd  = distance_root_mature_sd_exp
+  ) %>%
+  pivot_longer(
+    cols = starts_with(c("growth", "mature")),
+    names_to = c("root_type", ".value"),
+    names_sep = "_"
+  ) %>%
+  mutate(z_score = (obs - exp) / sd) %>% # Standardized Effect Size
+  drop_na()
+```
+
+## 1. The rhizosphere effect : attraction and spatial signature 
+
+### Global attraction index
+
+Does fauna actively select the rhizosphere? We compare Observed vs. Expected distances.
+
+```{r}
+rhizo_results <- habitat_data_long %>%
+  group_by(Predicted.class.levelup, position, root_type) %>%
+  summarise(
+    n = n(),
+    med_obs = median(obs),
+    med_exp = median(exp),
+    avg_exp_sd = mean(sd, na.rm = TRUE),
+    attr_strength = (med_exp - med_obs) / avg_exp_sd * 100,
+    p_val = wilcox.test(obs, exp, exact = FALSE)$p.value,
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    p_label = case_when(p_val < 0.001 ~ "***", p_val < 0.01 ~ "**", p_val < 0.05 ~ "*", TRUE ~ "ns"),
+    is_sig = p_val < 0.05
+  )
+
+bg_zones <- tibble(xmin = c(0, -Inf),xmax = c(Inf, 0),ymin = -Inf,ymax = Inf, zone = c("Selection", "Avoidance"))
+
+ggplot(rhizo_results, aes(x = attr_strength, y = Predicted.class.levelup)) +
+  geom_rect(data = bg_zones,
+    aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = zone),
+    inherit.aes = FALSE,
+    alpha = 0.1) +
+  geom_vline(xintercept = 0, color = "black", size = 1) +
+  geom_point(aes(size = n, color = is_sig)) +
+  geom_text(aes(label = p_label), vjust = -1, size = 3.5) +
+  facet_grid(root_type ~ position) +
+  scale_fill_manual(
+    name = "Spatial pattern",
+    values = c("Selection" = "#8fce00", "Avoidance" = "#cc0000")) +
+  scale_color_manual(
+    name = expression(italic(p) < 0.05),
+    values = c("TRUE" = "black", "FALSE" = "grey60")) +
+  labs(x = "Attraction Strength (%)",
+    y = NULL,
+    title = "Rhizosphere Attraction Index") +
+  scale_x_continuous(
+  expand = expansion(mult = 0.05, add = 2))+
+  theme_minimal()+
+  theme(
+  panel.border = element_rect(color = "black", fill = NA, linewidth = 0.2),
+  panel.grid.minor = element_blank(),
+  #strip.background = element_rect(fill = "grey95", color = "black"),
+  #legend.position = "bottom"
+)
+
+```
+
+-   Positive Strength (\>0) + Significant: The root is a Hotspot. The fauna is actively selecting the rhizosphere.
+
+-   Negative Strength (\<0) + Significant: The root is a Coldspot. This suggests avoidance (e.g., due to root exudate toxicity or predator presence).
+
+-   Non-Significant ($p > 0.05$): The fauna is distributed randomly relative to the root; there is no "rhizosphere effect" for this group.
+
+### Spatial signature (riz width)
+
+We model animal density as a function of distance to identify the Rhizosphere Influence Zone (RIZ) using GAM derivatives.
+
+```{r}
+# SPATIAL BINNING PARAMETERS 
+# We use a fine bin width (0.1 cm) to maintain high resolution. 
+# /!\ Sensitivity to bin size is reduced later by using an offset in the GAM.
+max_dist <- 10
+bin_w <- 0.1 
+
+# DATA PREPARATION & NORMALIZATION
+# Calculate the number of animals per distance bin and the available area.
+rhizo_decay_data <- habitat_data_long %>%
+  # Filter out distances that are too large and biased by edge effects
+  filter(obs <= max_dist) %>%
+  # Create bins and assign observations to the midpoint of the bin
+  mutate(dist_bin = floor(obs / bin_w) * bin_w + bin_w/2) %>%
+  group_by(dist_bin, Predicted.class.levelup, position, root_type) %>%
+  summarise(n_animals = n(), .groups = "drop") %>%
+  # GEOMETRIC CORRECTION: Calculate the area of the concentric ring (annulus).
+  # As distance (r) increases, the sampled area increases proportionally.
+  # Area = pi * (R_outer^2 - R_inner^2)
+  mutate(area = pi * ((dist_bin + bin_w/2)^2 - (dist_bin - bin_w/2)^2))
+
+# ANALYSIS FUNCTION (GAM + RIZ EXTRACTION) 
+extract_gam_stats <- function(df) {
+  # Minimum data threshold to ensure model stability
+  if (n_distinct(df$dist_bin) < 5 || sum(df$n_animals) < 10) return(NULL)
+  
+  # MODEL: Generalized Additive Model (GAM)
+  # Family = quasipoisson
+  # Offset = log(area): Treats the sampled area as an 'exposure' variable. 
+  # This converts the raw count model into a density model (count/area) 
+  # without the statistical pitfalls of using ratios directly.
+  model <- tryCatch({
+    gam(n_animals ~ s(dist_bin, k = 5), 
+        offset = log(area), 
+        data = df, 
+        family = quasipoisson())
+  }, error = function(e) return(NULL))
+  
+  if (is.null(model)) return(NULL)
+  
+  # RHIZOSPHERE INFLUENCE ZONE (RIZ) IDENTIFICATION 
+  # We use the first derivative (slope) of the model to find where 
+  # the influence of the root stops (the plateau).
+  eval_pts <- data.frame(dist_bin = seq(0.05, 10, length.out = 200))
+  derivs <- derivatives(model, data = eval_pts, type = "forward")
+  
+  # STATISTICAL TIPPING POINT:
+  # The RIZ is defined as the distance where the 95% Confidence Interval 
+  # of the derivative first includes zero. At this point, the density 
+  # slope is no longer significantly different from a horizontal line.
+  riz_val <- derivs %>%
+    mutate(lower = .derivative - 1.96 * .se,
+           upper = .derivative + 1.96 * .se) %>%
+    # Filter out the first 0.5cm to avoid noise near the root surface
+    filter(dist_bin > 0.5, (lower < 0 & upper > 0) | lower > 0) %>% 
+    slice(1) %>% 
+    pull(dist_bin)
+  
+  # RESULTS SUMMARY 
+  tibble(
+    edf = summary(model)$edf,             # Complexity of the curve (1 = linear)
+    p_val = summary(model)$s.pv,          # Significance of the spatial pattern
+    dev_expl = summary(model)$dev.expl * 100, # % of variance explained by root distance
+    riz_cm = if(length(riz_val) > 0) riz_val else NA_real_, # Distance of influence
+    n_total = sum(df$n_animals)           # Total count for the group
+  )
+}
+
+# EXECUTION 
+# Group data by taxa and experimental position, then apply the function
+rhizo_stats_table <- rhizo_decay_data %>%
+  group_by(Predicted.class.levelup, position, root_type) %>%
+  do(extract_gam_stats(.))
+
+# Display the final summary table
+knitr::kable(rhizo_stats_table)
+```
+
+**How to read the final table ?**
+
+-   **Presence of a "Signature" (Statistical Significance):** The p-value of the smooth term $s(dist\_bin)$. If $p < 0.05$, there is a significant spatial structure. If $p > 0.05$, the animals are randomly distributed relative to the root (no signature).
+
+-   **Complexity of the Attraction:** Effective Degrees of Freedom (EDF). $EDF \approx 1$: The attraction/repulsion is a simple linear gradient.$EDF > 1$ (e.g., 2 to 4): The relationship is non-linear (exponential decay or bimodal).1 This is the "classic" rhizosphere signature.$EDF > 4$: The pattern is highly complex (potentially reflecting micro-patches or noise).
+
+-   **The "Extent" of Influence (The Zero-Crossing):** to define the Rhizosphere Width, find the distance where the first derivative of the GAM curve approaches zero (where the slope flattens). Look at your GAM plot; the distance where the confidence interval first overlaps with the "Bulk Soil" mean (the plateau) is your Rhizosphere Influence Zone (RIZ).\
+
+## 2. The Geometric Niche: Habitat Availability Constraint
+
+Does root saturation limit behavioral choice? As root density increases, Z-scores should converge to zero.
+
+```{r}
+# Model Z-score against root density
+mod_z <- gam(z_score ~ s(root_cm2_count, k = 10) + Predicted.class.levelup + root_type, 
+             data = habitat_data_long)
+
+ggplot(habitat_data_long, aes(x = root_cm2_count, y = z_score)) +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = -1.96, ymax = 1.96, fill = "grey80", alpha = 0.3) +
+  geom_point(alpha = 0.1, aes(color = root_type)) +
+  geom_smooth(method = "gam", formula = y ~ s(x, k = 5), color = "black") +
+  facet_grid(root_type ~ Predicted.class.levelup) +
+  labs(x = "Root Density (scaled)", y = "Standardized Effect Size (Z-score)") +
+  theme_minimal()
+
+# Model output
+z_summary <- habitat_data_long %>%
+  group_by(Predicted.class.levelup, root_type) %>%
+  summarise(
+    n = n(),
+    mean_z = mean(z_score),
+    # Percentage of individuals actively selecting the rhizosphere
+    prop_active_selectors = sum(z_score < -1.96) / n() * 100,
+    # Correlation between density and choice intensity
+    density_constraint_rho = cor(z_score, root_cm2_count, method = "spearman"),
+    .groups = 'drop'
+  )
+z_summary
+```
+
+## 3. Environmental Drivers: Presence vs. Selection
+
+We disentangle whether climate affects Abundance (occupancy) or Distance Residuals (active behavior).
+
+```{r}
+# 1. Aggregate data by image
+env_analysis_data <- habitat_data_long %>%
+  group_by(image_name, Predicted.class.levelup, temp, hum, root_cm2_count, position, period, depth, root_type) %>%
+  summarise(abundance = n(), mean_z_score = mean(z_score), .groups = "drop")
+
+# 2. Baseline: Remove effect of abundance/density on distance
+baseline_mod <- gam(mean_z_score ~ s(abundance, k=5) + s(root_cm2_count, k=5), data = env_analysis_data)
+env_analysis_data$dist_residuals <- residuals(baseline_mod)
+
+# 3. Compare Importance: Abundance (Filter) vs. Residuals (Selection)
+mod_abund_imp <- gam(abundance ~ s(temp) + s(hum) + s(root_cm2_count), 
+                     data = env_analysis_data, family = nb())
+mod_behav_imp <- gam(dist_residuals ~ s(temp) + s(hum) + s(root_cm2_count), 
+                     data = env_analysis_data)
+
+# Extract and plot relative importance
+imp_comp <- bind_rows(
+  tidy(mod_abund_imp) %>% mutate(model = "Presence (Abundance)"),
+  tidy(mod_behav_imp) %>% mutate(model = "Selection (Residuals)")
+)
+
+ggplot(imp_comp, aes(x = term, y = statistic, fill = model)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  coord_flip() +
+  labs(title = "Climate Importance: Presence vs. Selection", y = "F-statistic") +
+  theme_minimal()
+```
