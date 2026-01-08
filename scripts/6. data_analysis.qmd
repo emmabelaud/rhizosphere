@@ -85,15 +85,24 @@ habitat_data_raw <- habitat_data_raw %>%
   group_by(date) %>%                         
   slice_max(start_date, n = 1) %>%           
   ungroup()
+```
 
-
+```{r}
 #df joint
 df_raw <- habitat_data_raw %>%
-  mutate(mature = (distance_root_mature_obs-distance_root_mature_mean_exp)/distance_root_mature_sd_exp,
-    growth = (distance_root_growth_obs - distance_root_growth_mean_exp) / distance_root_growth_sd_exp
+  mutate(mature = distance_root_mature_obs / distance_root_mature_mean_exp,
+         growth = distance_root_growth_obs / distance_root_growth_mean_exp
   ) %>%
-  pivot_longer(cols = c(mature, growth), names_to = "root_type", values_to = "diff")
+  pivot_longer(cols = c(mature, growth), names_to = "root_type", values_to = "diff") %>%
+  mutate(
+    sd_null = case_when(
+      root_type == "mature" ~ distance_root_mature_sd_exp,
+      root_type == "growth" ~ distance_root_growth_sd_exp
+    )
+  )
+```
 
+```{r}
 #filter outliers
 df_raw <- df_raw %>%
   group_by(root_type) %>% 
@@ -116,7 +125,7 @@ prep_df <- function(taxon = NA) {
     reframe(abundance = n(), .by = image_name)
 
   # Marginality par image × root_type 
-  marginality <- df #%>% reframe(diff = mean(diff, na.rm = TRUE),.by = c(image_name, root_type))
+  marginality <- df %>% reframe(diff = mean(diff, na.rm = TRUE),.by = c(image_name, root_type))
 
   # Covariables (supposées constantes à ce niveau)
   covariates <- df %>%
@@ -130,7 +139,7 @@ prep_df <- function(taxon = NA) {
     distinct()
 
   # Table finale
-  marginality %>%
+  df %>%
     left_join(abundance, by = "image_name") %>%
     #left_join(covariates, by = c("image_name", "root_type")) %>%
     filter(land_use %in% c("A", "C")) %>%
@@ -138,12 +147,12 @@ prep_df <- function(taxon = NA) {
       across(c(land_use, depth, root_type), as.factor)
     ) %>%
     mutate(across(
-      c(root_cm2_count, root_growth_cm2_count_24h, temp, hum,
+      c(diff, root_cm2_count, root_growth_cm2_count_24h, temp, hum,
         temp_soil_amplitude, hum_soil_amplitude,
         invertebrate_count, predators_count, abundance),
       ~ as.numeric(scale(.x))
     ))%>%
-  mutate(behavior = case_when(diff > 0 ~ "avoidance", diff < 0 ~ "selection"))
+  mutate(behavior = case_when(diff > 1 ~ "avoidance", diff < 1 ~ "selection"))
 }
 
 
@@ -291,9 +300,10 @@ run_rf_bootstrap <- function(data, root, signe, test_prop = 0.2, n_boot = 10, se
     if (nrow(data_train) < 5 || nrow(data_test) < 1) next
     
     rf <- ranger(
-      formula = diff ~ root_cm2_count + root_growth_cm2_count_24h + temp +
-        temp_soil_amplitude + hum + hum_soil_amplitude +
-        invertebrate_count + predators_count,
+      formula = diff ~ root_cm2_count + root_growth_cm2_count_24h + 
+        temp + temp_soil_amplitude + hum + hum_soil_amplitude 
+        + invertebrate_count + predators_count
+        ,
       data = data_train,
       num.trees = 100
     )
