@@ -21,7 +21,9 @@ library(mgcv)
 library(broom)
 library(gratia)
 library(lubridate)
-
+library(broom)
+library(marginaleffects)
+library(kableExtra)
 # Global settings
 set.seed(123)
 if (!dir.exists("../output")) dir.create("../output")
@@ -54,12 +56,8 @@ habitat_data_raw <- habitat_data_raw %>%
 # --- SCALING & TRANSFORMATION ---
 # Scale environmental predictors and abundance metrics
 habitat_data_scaled <- habitat_data_raw %>%
-  mutate(across(c(depth, period, position), as.factor)) %>%
-  mutate(across(
-    c(root_cm2_count, root_growth_cm2_count_24h, temp, hum, 
-      temp_soil_amplitude, hum_soil_amplitude, invertebrate_count, predators_count),
-    ~ as.numeric(scale(.x))
-  ))
+  mutate(across(c(depth, period, position), as.factor)) #%>%
+  #mutate(across(c(root_cm2_count, root_growth_cm2_count_24h, temp, hum,  temp_soil_amplitude, hum_soil_amplitude, invertebrate_count, predators_count),~ as.numeric(scale(.x))))
 
 # Pivot to long format for Root-Type comparison (Growth vs Mature)
 habitat_data_long <- habitat_data_scaled %>%
@@ -77,11 +75,11 @@ habitat_data_long <- habitat_data_scaled %>%
     names_to = c("root_type", ".value"),
     names_sep = "_"
   ) %>%
-  mutate(z_score = (obs - exp) / sd) %>% # Standardized Effect Size
+  mutate(z_score = (obs - exp) / sd) %>% 
   drop_na()
 ```
 
-## 1. The rhizosphere effect : attraction and spatial signature 
+## 1. The rhizosphere effect : attraction and spatial signature
 
 ### Global attraction index
 
@@ -89,15 +87,14 @@ Does fauna actively select the rhizosphere? We compare Observed vs. Expected dis
 
 ```{r}
 rhizo_results <- habitat_data_long %>%
-  group_by(Predicted.class.levelup, position, root_type) %>%
-  summarise(
+  reframe(
     n = n(),
     med_obs = median(obs),
     med_exp = median(exp),
     avg_exp_sd = mean(sd, na.rm = TRUE),
     attr_strength = (med_exp - med_obs) / avg_exp_sd * 100,
     p_val = wilcox.test(obs, exp, exact = FALSE)$p.value,
-    .groups = 'drop'
+    .by = c("Predicted.class.levelup", "position", "root_type")
   ) %>%
   mutate(
     p_label = case_when(p_val < 0.001 ~ "***", p_val < 0.01 ~ "**", p_val < 0.05 ~ "*", TRUE ~ "ns"),
@@ -234,34 +231,158 @@ knitr::kable(rhizo_stats_table)
 
 ## 2. The Geometric Niche: Habitat Availability Constraint
 
-Does root saturation limit behavioral choice? As root density increases, Z-scores should converge to zero.
+Is fauna close to the root because it chooses the hotspot (attraction) or because there is nowhere to be far from a root (constraint) ?
 
 ```{r}
-# Model Z-score against root density
-mod_z <- gam(z_score ~ s(root_cm2_count, k = 10) + Predicted.class.levelup + root_type, 
-             data = habitat_data_long)
+#methodological suggest : Compare the slope of obs ~ density relative to exp ~ density. 
+#If the observed slope is steeper than the theoretical slope, there is a biological choice that overrides the physical constraint.
 
-ggplot(habitat_data_long, aes(x = root_cm2_count, y = z_score)) +
-  annotate("rect", xmin = -Inf, xmax = Inf, ymin = -1.96, ymax = 1.96, fill = "grey80", alpha = 0.3) +
-  geom_point(alpha = 0.1, aes(color = root_type)) +
-  geom_smooth(method = "gam", formula = y ~ s(x, k = 5), color = "black") +
-  facet_grid(root_type ~ Predicted.class.levelup) +
-  labs(x = "Root Density (scaled)", y = "Standardized Effect Size (Z-score)") +
-  theme_minimal()
+# --- 1. DATA PREPARATION ---
+# We use the raw 'obs' and 'exp' values to compare slopes
+constraint_data <- habitat_data_long %>%
+  pivot_longer(cols = c(obs, exp), names_to = "data_type", values_to = "distance")%>%
+  mutate(data_type = as.factor(data_type), period = as.factor(period), position = as.factor(position), depth = as.factor(depth))
 
-# Model output
-z_summary <- habitat_data_long %>%
-  group_by(Predicted.class.levelup, root_type) %>%
-  summarise(
-    n = n(),
-    mean_z = mean(z_score),
-    # Percentage of individuals actively selecting the rhizosphere
-    prop_active_selectors = sum(z_score < -1.96) / n() * 100,
-    # Correlation between density and choice intensity
-    density_constraint_rho = cor(z_score, root_cm2_count, method = "spearman"),
-    .groups = 'drop'
-  )
-z_summary
+# --- 2. STATISTICAL MODELING ---
+# We test the interaction between Root Density and Data Type (Obs vs Exp)
+# If the interaction is significant, the biology responds differently than math predicts.
+
+constraint_data$group_interaction <- with(constraint_data, 
+    interaction(data_type, root_type, Predicted.class.levelup,  drop = TRUE))
+
+mod_constraint <- bam(distance ~ #s(root_cm2_count, k = 40) + 
+                        s(root_cm2_count, bs = "tp",by = group_interaction, k = 10) + 
+                        data_type + root_type + Predicted.class.levelup + 
+                        s(period, bs = "re") + s(position, bs = "re") + s(depth, bs = "re"),   
+ data = constraint_data,discrete = TRUE,
+  family = Gamma(link = "log"), 
+  method = "fREML")
+#gam.check(mod_constraint, rep = 1000)
+```
+
+```{r}
+low_dens  <- quantile(constraint_data$root_cm2_count, 0.10, na.rm = TRUE)
+mean_dens <- mean(constraint_data$root_cm2_count, na.rm = TRUE)
+high_dens <- quantile(constraint_data$root_cm2_count, 0.90, na.rm = TRUE)
+# Calcul des contrastes (différences point à point)
+contrasts_data <- comparisons(
+    mod_constraint,
+    newdata = datagrid(
+        root_type = unique(constraint_data$root_type),
+        Predicted.class.levelup = unique(constraint_data$Predicted.class.levelup),
+        root_cm2_count = c(low_dens, mean_dens, high_dens)
+    ),
+    variables = "data_type", # Compare Obs vs Exp
+    exclude = c("s(period)", "s(position)", "s(depth)")
+) %>%
+  as.data.frame()
+
+# Interprétation : Un 'estimate' négatif signifie que les animaux sont 
+# SIGNIFICATIVEMENT plus proches des racines que la géométrie ne le prévoit.
+
+library(marginaleffects)
+
+# On calcule le contraste 'obs' vs 'exp' pour chaque taxon et chaque stade
+# Cela répond à la question : "Quelle est l'importance du facteur data_type ?"
+biol_effect <- comparisons(
+    mod_constraint,
+    variables = "data_type",
+    newdata = datagrid(
+        root_type = unique(constraint_data$root_type),
+        Predicted.class.levelup = unique(constraint_data$Predicted.class.levelup),
+        root_cm2_count = c(low_dens, mean_dens, high_dens)
+    ),
+    exclude = c("s(period)", "s(position)", "s(depth)")
+) %>%
+  as.data.frame()
+
+# Nettoyage pour le tableau
+biol_summary <- biol_effect %>%
+  mutate(
+    term_label = paste(Predicted.class.levelup, root_type, sep = " | "),
+    density_label = case_when(
+        root_cm2_count == low_dens ~ "Low",
+        root_cm2_count == mean_dens ~ "Mean",
+        root_cm2_count == high_dens ~ "High"
+    )
+  ) %>%
+  select(term_label, density_label, estimate, conf.low, conf.high, p.value)
+
+# Si la pente 'obs' est plus raide (plus négative) que 'exp', 
+# alors la biologie "amplifie" le signal physique.
+# Test de Wald pour les termes du modèle
+anova_results <- anova(mod_constraint)
+# Regardez la ligne de l'interaction group_interaction
+
+
+
+smooth_stats <- tidy(mod_constraint, type = "smooth") %>%
+  select(term, edf) %>%
+  mutate(
+    term_clean = str_remove(term, fixed("s(root_cm2_count):group_interaction")),
+    term_clean = str_remove(term_clean, "\\.1$")) %>%
+  separate(term_clean, into = c("data_type", "root_type", "Predicted.class.levelup"), sep = "\\.") %>%
+  select(data_type, root_type, Predicted.class.levelup, edf)%>%
+  pivot_wider(names_from = data_type, values_from = edf)%>%
+  group_by(root_type, Predicted.class.levelup)%>%
+  reframe(complexity_index = obs/exp) %>% drop()
+```
+
+```{r}
+# --- STEP A: ATTRACTION STRENGTH (Contrast Analysis) ---
+# Calculates the difference: Observed Distance - Expected Distance
+# A negative value indicates biological attraction (animals are closer than the null model).
+attraction_analysis <- comparisons(
+    mod_constraint,
+    variables = "data_type",
+    newdata = datagrid(
+        root_type = unique(constraint_data$root_type),
+        Predicted.class.levelup = unique(constraint_data$Predicted.class.levelup),
+        root_cm2_count = c(low_dens, mean_dens, high_dens)
+    ),
+    exclude = c("s(period)", "s(position)", "s(depth)")
+) %>%
+  as.data.frame() %>%
+  mutate(density_label = case_when(
+    root_cm2_count == low_dens  ~ "Low_Attraction",
+    root_cm2_count == mean_dens ~ "Mean_Attraction",
+    root_cm2_count == high_dens ~ "High_Attraction"
+  ))
+
+# --- STEP B: BEHAVIORAL COMPLEXITY (EDF Ratio) ---
+# Compares the non-linearity (Effective Degrees of Freedom) of Bio vs Geo curves.
+# RCI > 1 means the biological response is more complex than the geometric constraint.
+complexity_analysis <- tidy(mod_constraint, type = "smooth") %>%
+  mutate(
+    term_clean = str_remove(term, fixed("s(root_cm2_count):group_interaction")),
+    term_clean = str_remove(term_clean, "\\.1$")
+  ) %>%
+  separate(term_clean, into = c("data_type", "root_type", "Taxon"), sep = "\\.") %>%
+  select(data_type, root_type, Taxon, edf) %>%
+  pivot_wider(names_from = data_type, values_from = edf) %>%
+  mutate(RCI = round(obs / exp, 2)) %>%
+  select(Taxon, root_type, RCI)
+
+# --- STEP C: DATA AGGREGATION ---
+# Reshape attraction data to wide format and join with complexity
+final_comparison_table <- attraction_analysis %>%
+  select(Taxon = Predicted.class.levelup, root_type, density_label, estimate) %>%
+  pivot_wider(names_from = density_label, values_from = estimate) %>%
+  left_join(complexity_analysis, by = c("Taxon", "root_type")) %>%
+  arrange(Taxon, desc(root_type))
+
+# --- STEP D: FINAL FORMATTING ---
+final_comparison_table %>%
+  kbl(
+    caption = "Ecological Performance Indicators - Net Attraction (mm) and Relative Complexity Index (RCI)",
+    booktabs = TRUE,
+    align = c("l", "l", "c", "c", "c", "c"),
+    digits = 3,
+    col.names = c("Taxon", "Root Stage", "Low Dens.", "Mean Dens.", "High Dens.", "RCI (Complexity)")
+  ) %>%
+  kable_styling(full_width = FALSE) %>%
+  add_header_above(c(" " = 2, "Net Attraction Strength (Obs - Exp, mm)" = 3, "Behavioral" = 1)) %>%
+  footnote(general = "Negative values indicate that fauna is closer to roots than expected by the geometric null model. RCI > 1 indicates higher biological complexity.")
 ```
 
 ## 3. Environmental Drivers: Presence vs. Selection
