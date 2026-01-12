@@ -54,8 +54,8 @@ habitat_data_long <- habitat_data_raw %>%
   slice_max(start_date, n = 1) %>%           
   ungroup() %>%
   mutate(across(c(depth, period, position, Predicted.class.levelup, image_name), as.factor)) %>%
-  mutate(across(c(root_cm2_count, root_growth_cm2_count_24h, temp, hum), ~ as.numeric(scale(.x)))) %>%
-  select(image_name, temp, hum, period, depth, position, Predicted.class.levelup, root_cm2_count,
+  mutate(across(c(root_cm2_count, root_growth_cm2_count_24h, temp, temp_soil_amplitude, hum, hum_soil_amplitude, invertebrate_count, predators_count), ~ as.numeric(scale(.x)))) %>%
+  select(image_name, temp, temp_soil_amplitude, hum, hum_soil_amplitude, invertebrate_count, predators_count, period, depth, position, Predicted.class.levelup, root_cm2_count,
          growth_obs = distance_root_growth_obs, 
          growth_exp = distance_root_growth_mean_exp, 
          growth_sd = distance_root_growth_sd_exp,
@@ -159,7 +159,7 @@ extract_gam_stats <- function(df) {
     gam(n_animals ~ s(dist_bin, k = 5), 
         offset = log(area), 
         data = df, 
-        family = quasipoisson())
+        family = nb())
   }, error = function(e) return(NULL))
   
   if (is.null(model)) return(NULL)
@@ -182,23 +182,33 @@ extract_gam_stats <- function(df) {
     slice(1) %>% 
     pull(dist_bin)
   
+  #MODEL VALIDATION TESTS
+  res <- simulateResiduals(model, n = 250, plot = FALSE)
+  test_ks <- testUniformity(res, plot = FALSE)$p.value             # Distribution test
+  test_disp <- testDispersion(res, plot = FALSE)$p.value # Surdispersion test
+  test_out <- testOutliers(res, plot = FALSE)$p.value   # Outliers tests
+  
   # RESULTS SUMMARY 
   tibble(
     edf = summary(model)$edf,             # Complexity of the curve (1 = linear)
     p_val = summary(model)$s.pv,          # Significance of the spatial pattern
     dev_expl = summary(model)$dev.expl * 100, # % of variance explained by root distance
     riz_cm = if(length(riz_val) > 0) riz_val else NA_real_, # Distance of influence
-    n_total = sum(df$n_animals)           # Total count for the group
+    n_total = sum(df$n_animals),           # Total count for the group
+    check_ks = test_ks,     # If < 0.05, distribution shape problem
+    check_disp = test_disp, # If < 0.05, overdispersion (justifies the quasi-Poisson distribution)
+    check_out = test_out   # If < 0.05, too many outliers
   )
 }
 
 rhizo_stats_table <- rhizo_decay_data %>%
   group_by(Predicted.class.levelup, position, root_type) %>%
   do(extract_gam_stats(.))
-
+rhizo_stats_table
 # 3. Tabular Presentation
 n_rows <- nrow(rhizo_stats_table)
 rhizo_stats_table %>%
+  select(-check_ks, -check_disp, -check_out)%>%
   rename(taxa = Predicted.class.levelup, position = position, `root Type` = root_type,
          `complexity (EDF)` = edf, `p-value` = p_val, `dev. Expl (%)` = dev_expl,
          `RIZ (cm)` = riz_cm, `n total` = n_total) %>%
@@ -216,7 +226,7 @@ rhizo_stats_table %>%
 
 ## 2. The Geometric Niche: Habitat Availability Constraint
 
-#### ***Is fauna close to the root by choice (attraction) or necessity (lack of space)?*** 
+#### ***Is fauna close to the root by choice (attraction) or necessity (lack of space)?***
 
 A central challenge in rhizosphere ecology is determining whether fauna proximity to roots is driven by biological attraction or by geometric constraint (high root density limiting the available space). To disentangle these processes, we modeled the biological deviation ($Observed - Expected$) using a GAM with a Student-t (`scat`) family to robustly handle ecological outliers. This allows us to observe if the biological signal remains stable or is "masked" as the soil becomes saturated with roots.
 
@@ -227,7 +237,7 @@ A central challenge in rhizosphere ecology is determining whether fauna proximit
 # Modeling the gap (Obs - Exp) as a function of root density
 mod_delta <- gam(
     (obs - exp) ~ Predicted.class.levelup + root_type +
-    s(root_cm2_count,  by = interaction(root_type, Predicted.class.levelup,  drop = TRUE), k = 20) + 
+    s(root_cm2_count,  by = interaction(root_type, Predicted.class.levelup,  drop = TRUE), k = 10) + 
     s(period, bs = "re") + 
     s(position, bs = "re")+
     s(depth, bs = "re"),
@@ -237,7 +247,7 @@ mod_delta <- gam(
 )
 
 # Check model performances
-gam.check(mod_delta, rep = 1000)
+#gam.check(mod_delta, rep = 1000)
 plot(DHARMa::simulateResiduals(mod_delta))
 
 # Extract significance for plot annotation
