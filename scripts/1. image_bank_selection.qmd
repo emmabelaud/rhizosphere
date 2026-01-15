@@ -41,8 +41,7 @@ df <- df_fauna %>%
     position = substr(scanner, 4, 4),
     depth = substr(scanner, 5, 6),
     orientation = substr(scanner, 8, 8),
-    presence = 1)%>%
-  filter(position != "B")
+    presence = 1)
 ```
 
 ### Hour filtering

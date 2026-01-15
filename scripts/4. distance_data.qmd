@@ -192,7 +192,7 @@ write.csv(final_table, output_file, row.names = FALSE)
 writeLines(failed_images, "../data/failed_images.txt")
 ```
 
-Consistency check: processed images vs reference image bank 
+Consistency check: processed images vs reference image bank
 
 ```{r}
 # Load the reference list of images expected to be processed
@@ -235,4 +235,3 @@ df_a <- read.csv("file_a.csv")
 df_b <- read.csv("file_b.csv")
 
 ```
-
