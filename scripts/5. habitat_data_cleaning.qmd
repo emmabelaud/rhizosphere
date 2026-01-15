@@ -28,7 +28,8 @@ habitat_data <- habitat_data_raw %>%
 habitat_data <- habitat_data %>%   
   mutate(position = as.factor(substr(scanner, 4, 4)),     
          depth = as.factor(substr(scanner, 5, 6)),     
-         orientation = as.factor(substr(scanner, 8, 8)))
+         orientation = as.factor(substr(scanner, 8, 8)))%>%
+  filter(position != "B")
 ```
 
 ### Environmental data
@@ -247,7 +248,7 @@ clean_taxon <- function(x) {
 relevant_taxa <- habitat_data %>%
   mutate(Predicted.class.levelup = clean_taxon(Predicted.class)) %>%
   count(Predicted.class.levelup) %>%
-  filter(n >= 300, !Predicted.class.levelup %in% c("unknown", "multi_taxa")) %>%
+  filter(n >= 400, !Predicted.class.levelup %in% c("unknown", "multi_taxa")) %>%
   pull(Predicted.class.levelup)
 
 habitat_data_filtered <- habitat_data %>%
