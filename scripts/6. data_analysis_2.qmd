@@ -119,25 +119,24 @@ p1 <- habitat_data_long %>%
   ggplot(aes(x = z_score, y = Predicted.class.levelup)) +
   geom_rect(data = bg_zones, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = zone), inherit.aes = FALSE, alpha = 0.15) +
   geom_jitter(alpha = 0.1, height = 0.1, color = "grey60") +
-  geom_segment(data = rhizo_results, aes(y = Predicted.class.levelup, yend = Predicted.class.levelup, x = 0, xend = med_z),arrow = arrow(length = unit(0.20, "cm")), linewidth = 1.2, color = "#e50000") +
-  geom_vline(xintercept = 0, color = "black", linetype = "dashed", linewidth = 1.2) +
+  geom_segment(data = rhizo_results, aes(y = Predicted.class.levelup, yend = Predicted.class.levelup, x = 0, xend = med_z),arrow = arrow(length = unit(0.20, "cm")), linewidth = 0.8, color = "#e50000") +
+  geom_vline(xintercept = 0, color = "black", linetype = "dashed", linewidth = 0.8) +
   geom_text(data = rhizo_results, aes(x = med_z, y = Predicted.class.levelup, label = p_label), 
-            vjust = -0.5, color = "black", size = 5, fontface = "bold") +
+            vjust = -0.5, color = "black", size = 3, fontface = "bold") +
   facet_grid(root_type ~ .) +
   scale_fill_manual(values = c("Selection" = "#F1F4C6", "Avoidance" = "#AAA6A4"), guide = "none") +
   labs(x = "Standardized Attraction Index (Z-score)", 
-       y = NULL, 
-       title = "Rhizosphere Attraction Index",
-       subtitle = "Negative Z-scores indicate active selection of the root zone") +
+       y = NULL) +
   theme_minimal() +
   theme(panel.border = element_rect(color = "black", fill = NA, linewidth = 1.5),
-        strip.text = element_text(size = 13, face = "bold"),
-        axis.title.x = element_text(size = 12),
-        title = element_text(size = 15, face = "bold"))
+        strip.text = element_text(size = 10, face = "bold"),
+        axis.title.x = element_text(size = 9),
+        title = element_text(size = 11, face = "bold"))
 
 
-p1
-tiff("../output/1.zscore_distribution.tiff", width = 1800, height = 1700, res = 300)
+p1 + labs(title = "Rhizosphere Attraction Index",
+       subtitle = "Negative Z-scores indicate active selection of the root zone")
+tiff("../output/1.zscore_distribution.tiff", width = 1500, height = 1000, res = 300)
 p1
 dev.off()
 ```
@@ -235,14 +234,16 @@ t1 <- rhizo_stats_table %>%
          `complexity (EDF)` = edf, `p-value` = p_val, `dev. Expl (%)` = dev_expl,
          `RIZ (cm)` = riz_cm, `n total` = n_total) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
-  kbl(caption = "Identification of the rhizosphere width through derivative analysis of animal density gradients", booktabs = TRUE, align = "c", format = "html",escape = FALSE,digits = 2) %>%
-  kable_styling(bootstrap_options = c("hover", "condensed"), full_width = F, position = "center") %>%
+  kbl(#caption = "Identification of the rhizosphere width through derivative analysis of animal density gradients", 
+    booktabs = TRUE, align = "c", format = "html",escape = FALSE) %>%
+  kable_styling(bootstrap_options = c("hover", "condensed"), position = "center") %>%
   row_spec(0:n_rows,extra_css = "border-bottom: 2px solid #dee2e6;") %>%
   row_spec(1:n_rows, background = "white") %>%
   row_spec(0, bold = TRUE, background = "#f2f2f2") %>%
   column_spec(4, color = spec_color(rhizo_stats_table$p_val, end = 0.1, direction = -1)) %>%
   column_spec(6, bold = T, border_left = "3px solid #b20000", border_right = "3px solid #b20000") %>%
   collapse_rows(columns = 1:3, valign = "top")
+t1 
 
 save_kable(t1, "../output/2.rhizosphere_width.html")
 invisible(webshot("../output/2.rhizosphere_width.html",
@@ -300,31 +301,30 @@ p2 <- ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
                   ymax = delta.fitted + 1.96 * delta.se.fit), 
               fill = "#002651", alpha = 0.1) +
   # The Original Fitted Points: Points are colored if they represent active attraction 
-  geom_point(aes(color = delta.fitted), size = 1.5, alpha=0.4) +
+  geom_point(aes(color = delta.fitted), size = 1, alpha=0.4) +
   scale_color_gradient2(low = "#b20000", mid = "#FFD93D",high = "white",   midpoint = 0) +
   coord_cartesian(ylim = c(-2, 1))+
   # The Rug Plot (Shows data density on the X-axis)
   geom_rug(alpha = 0.2, color = "black", #sides = "b"
            ) +
   # Significance Annotations
-  geom_text(data = s_tab, aes(x = Inf, y = -Inf, label = paste("Significance:", p_label)),hjust = 1.5, vjust = -3, inherit.aes = FALSE, size=3,fontface = "bold") +
+  geom_text(data = s_tab, aes(x = Inf, y = -Inf, label = paste("Significance:", p_label)),hjust = 1.5, vjust = -3, inherit.aes = FALSE, size=2,fontface = "bold") +
   
   facet_grid(root_type ~ Predicted.class.levelup, scales = "free") +
   # Styling
-  labs(
-    title = "Biological selection vs. geometric constraint",
-    subtitle = "Negative values represent active biological attraction beyond spatial probability",
-     x = "Root density scaled", y = "Obs − Exp Fitted Distance (cm)",color = "Index") +
+  labs(x = "Root density scaled", y = "Obs − Exp Fitted Distance (cm)",color = "Index") +
   theme_bw() +
   theme(panel.border = element_rect(color = "grey", fill = NA, linewidth = 0.1),
   panel.grid.minor = element_blank(),
   strip.background = element_rect(fill = "white", color = NA),
-  strip.text = element_text(size = 12, face = "bold"),
-  axis.title.x = element_text(size = 12),
-  title = element_text(size=14))
+  strip.text = element_text(size = 9, face = "bold"),
+  axis.title.x = element_text(size = 9),
+  title = element_text(size=10))
 
-p2
-tiff("../output/3.geometric_constraint.tiff", width = 1800, height = 1700, res = 300)
+p2 + labs(
+    title = "Biological selection vs. geometric constraint",
+    subtitle = "Negative values represent active biological attraction beyond spatial probability")
+tiff("../output/3.geometric_constraint.tiff", width = 2200, height = 1400, res = 300)
 p2
 dev.off()
 ```
