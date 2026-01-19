@@ -112,7 +112,7 @@ rhizo_results <- habitat_data_long %>%
 bg_zones <- tibble(xmin = c(0, -Inf),xmax = c(Inf, 0),ymin = -Inf, ymax = Inf, zone = c("Avoidance","Selection"))
 
 # Visualization of the Attraction Index
-habitat_data_long %>%
+p1 <- habitat_data_long %>%
   filter(z_score >= quantile(z_score, 0.25, na.rm = TRUE) - 1.5 * IQR(z_score, na.rm = TRUE),
     z_score <= quantile(z_score, 0.25, na.rm = TRUE) + 1.5 * IQR(z_score, na.rm = TRUE)) %>%
   ggplot(aes(x = z_score, y = Predicted.class.levelup)) +
@@ -133,13 +133,19 @@ habitat_data_long %>%
         strip.text = element_text(size = 13, face = "bold"),
         axis.title.x = element_text(size = 12),
         title = element_text(size = 15, face = "bold"))
+
+
+p1
+tiff("../output/1.zscore_distribution.tiff", width = 1800, height = 1700, res = 600)
+p1
+dev.off()
 ```
 
 The analysis reveals significant, taxa-specific attraction to the root surface, particularly for Collembola and Gastropoda. The strength of this selection varies by root type, suggesting that biological drivers—such as root exudation—shape spatial clustering beyond what is expected by chance.
 
-### *Defining the rhizosphere influence zone*
+### *Defining the rhizosphere width*
 
-To identify the precise spatial extent of root influence, we model animal density as a function of distance using GAMs. We incorporate a geometric correction (log-area offset) to account for the increasing soil volume available at greater distances from the root. The RIZ tipping point is defined as the distance where the first derivative of the model plateau, indicating that the root's influence on animal density has vanished.
+To identify the precise spatial extent of root influence, we model animal density as a function of distance using GAMs. We incorporate a geometric correction (log-area offset) to account for the increasing soil volume available at greater distances from the root. The root influence zone tipping point is defined as the distance where the first derivative of the model plateau, indicating that the root's influence on animal density has vanished.
 
 ```{r}
 #| label: riz-extraction
@@ -179,7 +185,7 @@ extract_gam_stats <- function(df) {
   
   if (is.null(model)) return(NULL)
   
-  # RHIZOSPHERE INFLUENCE ZONE (RIZ) IDENTIFICATION 
+  # RHIZOSPHERE IDENTIFICATION 
   # We use the first derivative (slope) of the model to find where 
   # the influence of the root stops (the plateau).
   eval_pts <- data.frame(dist_bin = seq(0.05, 10, length.out = 200))
@@ -222,13 +228,13 @@ rhizo_stats_table <- rhizo_decay_data %>%
 
 # 3. Tabular Presentation
 n_rows <- nrow(rhizo_stats_table)
-rhizo_stats_table %>%
+t1 <- rhizo_stats_table %>%
   select(-check_ks, -check_disp, -check_out)%>%
   rename(taxa = Predicted.class.levelup, `root Type` = root_type,
          `complexity (EDF)` = edf, `p-value` = p_val, `dev. Expl (%)` = dev_expl,
          `RIZ (cm)` = riz_cm, `n total` = n_total) %>%
   mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
-  kbl(caption = "Identification of the Rhizosphere Influence Zone (RIZ) through derivative analysis of animal density gradients",
+  kbl(caption = "Identification of the rhizosphere width through derivative analysis of animal density gradients",
       booktabs = TRUE, align = "c") %>%
   kable_styling(bootstrap_options = c("hover", "condensed"), full_width = F, position = "center") %>%
   row_spec(0:n_rows,extra_css = "border-bottom: 2px solid #dee2e6;") %>%
@@ -237,6 +243,10 @@ rhizo_stats_table %>%
   column_spec(4, color = spec_color(rhizo_stats_table$p_val, end = 0.1, direction = -1)) %>%
   column_spec(6, bold = T, border_left = "3px solid #b20000", border_right = "3px solid #b20000") %>%
   collapse_rows(columns = 1:3, valign = "top")
+
+tiff("../output/2.rhizosphere_width.tiff", width = 1800, height = 1700, res = 600)
+t1
+dev.off()
 ```
 
 ## 2. The geometric niche: habitat availability constraint
@@ -282,7 +292,7 @@ habitat_delta <- safe_augment(mod_delta, habitat_data_long, "delta")
 
 ```{r}
 #| label: geometric-constraint-plot
-ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
+p2 <- ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
   geom_hline(yintercept = 0, 
              color = "black", size = 0.5, alpha = 0.3) +
   # The 95% Confidence Interval Envelope
@@ -312,6 +322,11 @@ ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
   strip.text = element_text(size = 12, face = "bold"),
   axis.title.x = element_text(size = 12),
   title = element_text(size=14))
+
+p2
+tiff("../output/2.geometric_constraint.tiff", width = 1800, height = 1700, res = 600)
+p2
+dev.off()
 ```
 
 Growing Roots: Biological attraction remains relatively stable across the density gradient, suggesting that high-quality growth zones (e.g., exudates) provide a signal strong enough to overcome the geometric noise of increasing root surface area.
