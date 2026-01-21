@@ -12,1002 +12,510 @@ execute:
   echo: false
 ---
 
-## Data
+## Executive Summary
+
+This study investigates the spatial behavior of soil fauna in relation to root systems, challenging the notion of the rhizosphere as a simple, static attraction zone. By integrating null model simulations with Generalized Additive Models (GAMs), we decouple biological selection from physical habitat constraints and reveal that the demographic benefits of rhizosphere exploitation are governed by a distinct temporal lag.
+
+## Setup and data preparation
 
 ```{r}
-# packages loading
+# libraries
 library(tidyverse)
-library(performance)
-library(ranger)
-library(patchwork)
-library(grid)
-library(lmerTest)
+library(mgcv)
+library(broom)
+library(gratia)
+library(lubridate)
+library(broom)
+library(marginaleffects)
 library(kableExtra)
+library(DHARMa)
+library(piecewiseSEM)
+library(lme4)
 library(webshot2)
-library(lme4) 
-library(treeshap)
-library(ggh4x)
-if (!dir.exists("../output")) {
-  dir.create("../output")
-}
 
-context_factors <- c("depth", "land_use")
-predictors <- c("root_cm2_count", "root_growth_cm2_count_24h",
-                "invertebrate_count","predators_count",
-                "hum_soil_amplitude","hum",
-                "temp_soil_amplitude", "temp")
-context_labels <- c(depth = "Depth", land_use = "Land-use")
-factor_palette = c(
-  "root_growth_cm2_count_24h"= "#5D8736", 
-  "root_cm2_count" =  "#A9C46C",
-  "predators_count" = "#8ca8c4", 
-  "invertebrate_count" ="#1c54a8",
-   "hum_soil_amplitude" = "#e0a81c",
-  "hum" = "#c48c1c",
-  "temp_soil_amplitude"= "#ff0000",
-  "temp" = "#970019")
-factor_palette_eng <- c(
-  "Root growth flux" = "#5D8736",
-  "Root density" = "#A9C46C",
-  "Predator density" = "#8ca8c4",
-  "Invertebrate density" = "#1c54a8",
-  "Daily soil humidity amplitude" = "#e0a81c",
-  "Soil humidity" = "#c48c1c",
-  "Daily soil temperature amplitude" = "#ff0000",
-  "Soil temperature" = "#970019")
-
-variable_labels <- c(
-temp = "Soil temperature",
-temp_soil_amplitude = "Daily soil temperature amplitude",
-hum = "Soil humidity",
-hum_soil_amplitude = "Daily soil humidity amplitude",
-invertebrate_count = "Invertebrate density",
-predators_count = "Predator density",
-root_cm2_count = "Root density",
-root_growth_cm2_count_24h = "Root growth flux",
-land_use = "Land-use",
-depth = "Depth")
-
+# Global settings
 set.seed(123)
+if (!dir.exists("../output")) dir.create("../output")
+
+# Ring surface function for density normalization
+ring_surface <- function(r, width) {
+  pi * ((r + width)^2 - r^2)}
+# function to extract models results safely
+safe_augment <- function(model, data, prefix) {
+  df_new <- augment(model) %>%
+    select(starts_with(".")) %>%
+    rename_with(~ paste0(prefix, .))
+  
+  bind_cols(data, df_new)
+}
 ```
 
 ```{r}
-# Data import
+#| label: data-import
+# Data Import & Alignment
 habitat_data_raw <- read.csv("../output/distance_data_cleaned.csv") %>%
-    mutate(land_use = position)
-habitat_data_raw$date <- parse_date_time(habitat_data_raw$date,orders = c("Y-m-d H:M:S", "Y-m-d"), tz = "UTC")
+  mutate(date = parse_date_time(date, orders = c("Y-m-d H:M:S", "Y-m-d"), tz = "UTC"))
 
-#period
-target_dates <- tibble( period = 1:7, start_date = as.Date(c("2024-03-20", "2024-05-25", "2024-07-15", "2024-09-19", "2024-12-10", "2025-02-15", "2025-04-20")))
-habitat_data_raw <- habitat_data_raw %>%
+target_dates <- tibble(
+  period = 1:7, 
+  start_date = as.Date(c("2024-03-20", "2024-05-25", "2024-07-15", "2024-09-19", 
+                         "2024-12-10", "2025-02-15", "2025-04-20"))
+)
+
+habitat_data_long <- habitat_data_raw %>%
   crossing(target_dates) %>%                
   filter(date >= start_date) %>%            
   group_by(date) %>%                         
   slice_max(start_date, n = 1) %>%           
-  ungroup()
-```
-
-```{r}
-#df joint
-df_raw <- habitat_data_raw %>%
-  mutate(mature = distance_root_mature_obs / distance_root_mature_mean_exp,
-         growth = distance_root_growth_obs / distance_root_growth_mean_exp
-  ) %>%
-  pivot_longer(cols = c(mature, growth), names_to = "root_type", values_to = "diff") %>%
-  mutate(
-    sd_null = case_when(
-      root_type == "mature" ~ distance_root_mature_sd_exp,
-      root_type == "growth" ~ distance_root_growth_sd_exp
-    )
-  )
-```
-
-```{r}
-#filter outliers
-df_raw <- df_raw %>%
-  group_by(root_type) %>% 
-  mutate( Q1 = quantile(diff, 0.25, na.rm = TRUE), Q3 = quantile(diff, 0.75, na.rm = TRUE), IQR = Q3 - Q1) %>%
-  filter(diff >= Q1 - 3 * IQR, diff <= Q3 + 3 * IQR) %>%
   ungroup() %>%
-  select(-Q1, -Q3, -IQR)
-
-
-taxa <- c(collembola = "collembola", acari = "acari", gastropoda = "gastropoda")
-
-prep_df <- function(taxon = NA) {
-
-  df <- if (!is.na(taxon)) {
-    df_raw %>% filter(Predicted.class.levelup == taxon)
-  } else df_raw
-
-  # Abondance par image
-  abundance <- df %>%
-    reframe(abundance = n(), .by = image_name)
-
-  # Marginality par image × root_type 
-  marginality <- df %>% reframe(diff = mean(diff, na.rm = TRUE),.by = c(image_name, root_type))
-
-  # Covariables (supposées constantes à ce niveau)
-  covariates <- df %>%
-    select(
-      image_name, scanner, period, root_type,
-      invertebrate_count, predators_count,
-      land_use, depth,
-      root_cm2_count, root_growth_cm2_count_24h,
-      temp, hum, temp_soil_amplitude, hum_soil_amplitude
-    ) %>%
-    distinct()
-
-  # Table finale
-  df %>%
-    left_join(abundance, by = "image_name") %>%
-    #left_join(covariates, by = c("image_name", "root_type")) %>%
-    filter(land_use %in% c("A", "C")) %>%
-    mutate(
-      across(c(land_use, depth, root_type), as.factor)
-    ) %>%
-    mutate(across(
-      c(diff, root_cm2_count, root_growth_cm2_count_24h, temp, hum,
-        temp_soil_amplitude, hum_soil_amplitude,
-        invertebrate_count, predators_count, abundance),
-      ~ as.numeric(scale(.x))
-    ))%>%
-  mutate(behavior = case_when(diff > 1 ~ "avoidance", diff < 1 ~ "selection"))
-}
-
-
-df_list <- map(taxa, prep_df)
-names(df_list) <- names(taxa)
-df_all <- prep_df(NA)
+  mutate(across(c(scanner, depth, period, position,orientation, Predicted.class.levelup, image_name), as.factor)) %>%
+  select(scanner, image_name, temp, temp_soil_amplitude, hum, hum_soil_amplitude, invertebrate_count, predators_count, period, depth, position, orientation, Predicted.class.levelup, root_cm2_count,root_growth_cm2_count_24h,
+         growth_obs = distance_root_growth_obs, 
+         growth_exp = distance_root_growth_mean_exp, 
+         growth_sd = distance_root_growth_sd_exp,
+         mature_obs = distance_root_mature_obs, 
+         mature_exp = distance_root_mature_mean_exp, 
+         mature_sd = distance_root_mature_sd_exp) %>%
+  pivot_longer(cols = starts_with(c("growth", "mature")), 
+               names_to = c("root_type", ".value"), names_sep = "_") %>%
+  mutate(z_score = (obs - exp) / sd) %>% 
+  # filtering of extreme root density values
+  filter(root_cm2_count >= quantile(root_cm2_count, 0.25, na.rm = TRUE) - 1.5 * IQR(root_cm2_count, na.rm = TRUE),root_cm2_count <= quantile(root_cm2_count, 0.25, na.rm = TRUE) + 1.5 * IQR(root_cm2_count, na.rm = TRUE)) %>%
+  drop_na()
 ```
 
-## 1. The selective role of the development state of the roots
+## 1. The rhizosphere effect: attraction and spatial signature
 
-Marginality values distribution across root type. Significance codes: \* p ≤ 0.05, \*\* p ≤ 0.01, \*\*\* p ≤ 0.001, ns = not significant. Group annotations: one-sample Wilcoxon test vs 0. Horizontal bar between violins: Wilcoxon rank-sum test between groups.
+### *Do soil fauna actively select the rhizosphere space ?*
 
-```{r}
-p_to_stars <- function(p) {
-  case_when(
-    p <= 0.001 ~ "***",
-    p <= 0.01  ~ "**",
-    p <= 0.05  ~ "*",
-    TRUE ~ "ns"
-  )
-}
+We employ a null model approach to determine whether soil fauna actively select the rhizosphere or if their proximity is a result of random distribution. By comparing observed animal-to-root distances against simulated expected distances, we calculate a standardized Z-score ($Z = \frac{obs - exp}{sd}$).
 
-make_violin_plot <- function(df, title = "") {
-  
-  # Intra-group summary: median, IQR and Wilcoxon test (vs 0)
-  annotations <- df %>%
-    group_by(root_type) %>%
-    summarise(
-      median_diff = median(diff, na.rm = TRUE),
-      iqr_diff    = IQR(diff, na.rm = TRUE),
-      p_value     = wilcox.test(diff, mu = 0, exact = FALSE)$p.value,
-      .groups = "drop"
-    ) %>%
-    mutate(
-      stars = p_to_stars(p_value),
-      y_pos = max(df$diff, na.rm = TRUE) * 0.8,
-      x_pos = as.numeric(factor(root_type)) + 0.08,
-      label = paste0(
-        stars,
-        "\nMedian = ", round(median_diff, 2),
-        "\nIQR = ", round(iqr_diff, 2)
-      )
-    )
+-   Active selection (attraction): Indicated by negative Z-scores.
 
-  # Intergroup test
-  test_between <- wilcox.test(diff ~ root_type, data = df, exact = FALSE)
-  annotation_between <- tibble(
-    root_type = mean(as.numeric(factor(df$root_type))),
-    y_pos = max(df$diff, na.rm = TRUE) * 1.2,
-    label = p_to_stars(test_between$p.value)
-  )
-  y_bar <- max(df$diff, na.rm = TRUE) * 1.15
+-   Active avoidance (aepulsion): Indicated by positive Z-scores.
 
-  ggplot(df, aes(root_type, diff, fill = root_type)) +
-    geom_hline(yintercept = 0, size = 0.1, color = "grey") +
-    geom_jitter(alpha = 0.6, size = 0.5, shape = 20, color = "lightgrey") +
-    geom_violin(aes(color = root_type), alpha = 0.7, linewidth = 0.1) +
-    geom_boxplot(
-      width = 0.1, outlier.shape = NA, coef = 0,
-      fill = "white", alpha = 1, linewidth = 0.1,
-      position = position_dodge(width = 0.5)
-    ) +
-    scale_color_manual(values = c("#9DB6A6", "#DAC9BA")) +
-    scale_fill_manual(values = c("#5D866C", "#C2A68C")) +
-    geom_text(
-      data = annotations,
-      aes(x = x_pos, y = y_pos, label = label),
-      inherit.aes = FALSE, size = 1, hjust = 0
-    ) +
-    annotate("segment", x = 1, xend = 2, y = y_bar, yend = y_bar, linewidth = 0.2) +
-    geom_text(
-      data = annotation_between,
-      aes(x = root_type, y = y_pos, label = label),
-      inherit.aes = FALSE, size = 1
-    ) +
-    scale_x_discrete(labels = c("growth" = "Growing roots", "mature" = "Mature roots")) +
-    labs(title = title, y = "Marginality") +
-    guides(fill = "none", color = "none") +
-    theme_minimal() +
-    theme(
-      plot.title = element_text(size = 4, face = "bold", hjust = 0.5, vjust = -1),
-      axis.title.x = element_blank(),
-      axis.title.y = element_text(size = 3),
-      axis.text.x  = element_text(size = 3),
-      axis.text.y  = element_text(size = 3),
-      panel.grid.major = element_line(linewidth = 0.1, color = "#ececec"),
-      panel.grid.minor = element_line(linewidth = 0.1, color = "#ececec"),
-      panel.background = element_rect(color = "grey"),
-      plot.margin = margin(2, 2, 2, 2),
-      legend.margin = margin(0, 0, 0, 0),
-      legend.box.margin = margin(0, 0, 0, 0)
-    )
-}
-
-# Graphics generation
-p_all <- make_violin_plot(df_all, "All invertebrates")
-p_col <- make_violin_plot(df_list$collembola, "Collembola")
-p_aca <- make_violin_plot(df_list$acari, "Acari") +
-  theme(axis.title.y = element_blank())
-p_gas <- make_violin_plot(df_list$gastropoda, "Gastropoda") +
-  theme(axis.title.y = element_blank())
-
-panel <- (p_all | p_aca) / (p_col | p_gas) & theme(plot.margin = margin(3, 3, 3, 3))
-
-tiff("../output/1.violin_plot.tiff", width = 1800, height = 1700, res = 600)
-panel
-dev.off()
-
-```
-
-## 2. Local modulation by the ressource
-
-Factor contributions and explained variance in Random Forest models. Bar plots: Contribution of factors (IncMSE). Pie charts: Relative proportion of variance explained for spatial patterns - selection or avoidance degree - of invertebrate activity relative to roots, according to root developmental stage - growing or mature.
+-   Statistical Validation: A Wilcoxon Test was used to determine if median Z-scores significantly deviated from zero.
 
 ```{r}
-run_rf_bootstrap <- function(data, root, signe, test_prop = 0.2, n_boot = 10, seed = 123) {
-  set.seed(seed)
-  
-  data_sub <- data %>%
-    filter(root_type == root,
-           behavior == signe) %>%
-    mutate(across(where(is.character), as.factor)) %>%
-    drop_na()
-  
-  if (nrow(data_sub) < 10) return(NULL)
-  
-  data_sub <- data_sub %>%
-    mutate(group_id = interaction(period, scanner, drop = TRUE))
-  
-  bootstrap_results <- vector("list", n_boot)
-  
-  for (b in seq_len(n_boot)) {
-    # Sélection aléatoire train/test par groupe
-    test_idx <- data_sub %>%
-      group_by(group_id) %>%
-      group_map(~ {
-        n_g <- nrow(.x)
-        sample(seq_len(n_g), size = max(1, floor(test_prop * n_g)))
-      }) %>%
-      unlist()
-    
-    data_test  <- data_sub[test_idx, ]
-    data_train <- data_sub[-test_idx, ]
-    
-    if (nrow(data_train) < 5 || nrow(data_test) < 1) next
-    
-    rf <- ranger(
-      formula = diff ~ root_cm2_count + root_growth_cm2_count_24h + 
-        temp + temp_soil_amplitude + hum + hum_soil_amplitude 
-        + invertebrate_count + predators_count
-        ,
-      data = data_train,
-      num.trees = 100
-    )
-    
-    pred_train <- predict(rf, data_train)$predictions
-    pred_test  <- predict(rf, data_test)$predictions
-    
-    train_mse <- mean((data_train$diff - pred_train)^2)
-    test_mse  <- mean((data_test$diff - pred_test)^2)
-    
-    unified <- ranger.unify(rf, data_train %>% select(-diff))
-    shap_values <- treeshap(unified, data_train %>% select(-diff))
-    
-    importance_df <- as.data.frame(colMeans(abs(shap_values$shaps))) %>%
-      tibble::rownames_to_column("variable") %>%
-      rename(importance = 2) %>%
-      mutate(
-        explained_variance = pmax(0, 1 - rf$prediction.error / var(data_train$diff)),
-        root_type = root,
-        behavior = signe,
-        train_mse = train_mse,
-        test_mse = test_mse,
-        bootstrap = b
-      )
-    
-    shap_long <- shap_values$shaps %>%
-      as.data.frame() %>%
-      tibble::rownames_to_column("row_id") %>%
-      pivot_longer(-row_id, names_to = "variable", values_to = "shap") %>%
-      mutate(
-        image_name = data_train$image_name[as.integer(row_id)],
-        root_type = root,
-        behavior = signe,
-        bootstrap = b
-      )
-    
-    meta_df <- tibble(
-      root_type = root,
-      behavior = signe,
-      n_obs = nrow(data_sub),
-      num_trees = rf$num.trees,
-      num_variables = rf$num.independent.variables,
-      oob_error = rf$prediction.error,
-      explained_variance = pmax(0, 1 - rf$prediction.error / var(data_train$diff)),
-      train_mse = train_mse,
-      test_mse = test_mse,
-      n_train = nrow(data_train),
-      n_test = nrow(data_test),
-      bootstrap = b
-    )
-    
-    bootstrap_results[[b]] <- list(
-      importance = importance_df,
-      shap = shap_long,
-      meta = meta_df
-    )
-  }
-  
-  # Combiner les résultats
-  bootstrap_results <- purrr::compact(bootstrap_results)
-  if(length(bootstrap_results) == 0) return(NULL)
-  
-  list(
-    importance = map_dfr(bootstrap_results, ~ .x$importance),
-    shap       = map_dfr(bootstrap_results, ~ .x$shap),
-    meta       = map_dfr(bootstrap_results, ~ .x$meta)
-  )
-}
-
-
-
-
-invisible(results_all_boot <- map(names(df_list), function(taxon) {
-  combos <- expand.grid(
-    root_type = c("growth", "mature"),
-    behavior = c("avoidance", "selection"),
-    stringsAsFactors = FALSE
-  ) %>% as_tibble()
-  
-  # Pour chaque combinaison, faire le bootstrap
-  runs <- pmap(combos, function(root_type, behavior) {
-    run_rf_bootstrap(df_list[[taxon]], root_type, behavior)
-  })
-  
-  runs <- purrr::compact(runs)
-  
-  if(length(runs) == 0) {
-    return(list(
-      importance = tibble(),
-      shap       = tibble(),
-      meta       = tibble()
-    ))
-  }
-  
-  # Moyenne des importances et des MSE sur les bootstraps
-  importance_avg <- map_dfr(runs, ~ .x$importance) %>%
-    group_by(variable, root_type, behavior) %>%
-    summarise(
-      importance = mean(importance),
-      explained_variance = mean(explained_variance),
-      train_mse = mean(train_mse),
-      test_mse  = mean(test_mse),
-      .groups = "drop"
-    ) %>%
-    mutate(taxon = taxon)
-  
-  # Moyenne des SHAP
-  shap_avg <- map_dfr(runs, ~ .x$shap) %>%
-    group_by(variable, image_name, root_type, behavior) %>%
-    summarise(
-      shap = mean(shap),
-      .groups = "drop"
-    ) %>%
-    mutate(taxon = taxon)
-  
-  # Moyenne des meta
-  meta_avg <- map_dfr(runs, ~ .x$meta) %>%
-    group_by(root_type, behavior) %>%
-    summarise(
-      n_obs = mean(n_obs),
-      num_trees = mean(num_trees),
-      num_variables = mean(num_variables),
-      oob_error = mean(oob_error),
-      explained_variance = mean(explained_variance),
-      train_mse = mean(train_mse),
-      test_mse = mean(test_mse),
-      n_train = mean(n_train),
-      n_test  = mean(n_test),
-      .groups = "drop"
-    ) %>%
-    mutate(taxon = taxon)
-  
-  list(
-    importance = importance_avg,
-    shap       = shap_avg,
-    meta       = meta_avg
-  )
-}))
-
-# Combinaison finale
-rf_results_all   <- map_dfr(results_all_boot, "importance")
-shap_results_all <- map_dfr(results_all_boot, "shap")
-rf_meta_all      <- map_dfr(results_all_boot, "meta")
-
-
-```
-
-### Results model perf
-
-```{r}
-rf_meta_all %>%
-  select(taxon, root_type, behavior,n_obs, train_mse, n_train, test_mse, n_test)%>%
-  ggplot(aes(taxon))+
-  geom_point(aes(y=train_mse), color = "orange")+
-  geom_point(aes(y=test_mse), color = "red")+
-  facet_grid(root_type ~ behavior)
-```
-
-### Results variable contribution
-
-```{r}
-# Harmonisation of columns 
-rf_results_all <- rf_results_all %>%
-  mutate( root = recode(root_type,
-                    growth = "growing roots",
-                    mature = "mature roots"),
-    behavior = factor(behavior, levels = c("selection", "avoidance")),
-    root = factor(root, levels = c("growing roots", "mature roots")),
-    taxon = factor(taxon, levels = c("acari", "collembola", "gastropoda"))
-  ) 
-rf_meta_all <- rf_meta_all %>%
-  mutate( root = recode(root_type,
-                    growth = "growing roots",
-                    mature = "mature roots"),
-    behavior = factor(behavior, levels = c("selection", "avoidance")),
-    root = factor(root, levels = c("growing roots", "mature roots")),
-    taxon = factor(taxon, levels = c("acari", "collembola", "gastropoda"))
-  )
-rf_results_all <- rf_results_all %>%
-  group_by(taxon, root, behavior) %>%
-  mutate(importance_prop = importance / sum(importance)) %>%
-  ungroup()
-
-# Variable typology
-rf_results_all <- rf_results_all %>%
-  mutate(type_variable = case_when(
-    variable %in% c("temp","temp_soil_amplitude") ~ "Température",
-    variable %in% c("hum", "hum_soil_amplitude") ~ "Humidity",
-    variable %in% c("root_cm2_count", "root_growth_cm2_count_24h") ~ "Ressource",
-    variable %in% c("invertebrate_count", "predators_count") ~ "Biotiques",
-    TRUE ~ "Autres"
-  ))
-
-rf_results_all$variable <- factor(
-  rf_results_all$variable,
-  levels = rf_results_all %>%
-    arrange(type_variable) %>%
-    pull(variable) %>%
-    unique())
-```
-
-```{r}
-palette_df <- data.frame(
-  variable = names(factor_palette),
-  couleur = unname(factor_palette)
-) %>%
-  mutate(
-    type_variable = case_when(
-      variable %in% c("temp","temp_soil_amplitude") ~ "Température",
-    variable %in% c("hum", "hum_soil_amplitude") ~ "Humidity",
-    variable %in% c("root_cm2_count", "root_growth_cm2_count_24h") ~ "Ressource",
-    variable %in% c("invertebrate_count", "predators_count") ~ "Biotiques",
-    TRUE ~ "Autres"
-    ),
-    variable = factor(variable, levels = names(factor_palette)))
-
-palette_df <- palette_df %>%
-  mutate(Factors = variable_labels[as.character(variable)])
-
-palette_df$Factors <- factor(
-  palette_df$Factors,
-  levels = rf_results_all %>%
-    arrange(type_variable) %>%
-    pull(variable) %>%
-    unique() %>%
-    variable_labels[.])
-
-graph_legende <- ggplot(palette_df, aes(x = type_variable, y=0, fill = Factors)) + geom_col()+
-  scale_fill_manual(values = factor_palette_eng[variable_labels[predictors]])+ theme_void()+
-  guides(fill = guide_legend(direction = "horizontal"))+
-  theme(plot.margin = grid::unit(c(0,0,0,0), "pt"),legend.position = "bottom") 
-```
-
-```{r}
-combinations <- expand.grid(
-  behavior = unique(rf_results_all$behavior),
-  root = unique(rf_results_all$root),
-  stringsAsFactors = FALSE)%>%
-  mutate(behavior = factor(behavior, levels = c("avoidance", "selection")))%>%
-  arrange(root,behavior)
-taxon_order <- c("gastropoda", "collembola", "acari")
-plots_list <- list()
-
-for(i in seq_len(nrow(combinations))) {
-  comb <- combinations[i, ]
-  
-  # Filter for the current combination
-  bar_data <- rf_results_all %>%
-    filter(behavior == comb$behavior,
-           root == comb$root) %>%
-    mutate(taxon = factor(taxon, levels = taxon_order))
-  
-  # Prepare the data for the pie chart
-  pie_data <- bar_data %>%
-    group_by(taxon) %>%
-    summarise(var = mean(explained_variance) * 100,
-              inverse = 100 - var, .groups = "drop") %>%
-    pivot_longer(cols = c(var, inverse), names_to = "type", values_to = "value") %>%
-    mutate(taxon = factor(taxon, levels = rev(taxon_order)))
-  
-  # Barplot
-  bar_plot <- bar_data %>%
-    mutate(variable = factor(variable, levels = predictors))%>%
-    ggplot(aes(x = taxon, y = importance_prop, fill = variable)) +
-    geom_bar(stat = "identity", position = "fill") +
-    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
-    scale_fill_manual(values = factor_palette[predictors[]]) +
-    coord_flip() +
-    labs(x = "Proportional Importance (IncMSE)", y = NULL, fill = NULL) +
-    theme_minimal() +
-    theme(panel.grid = element_blank(),
-      panel.spacing = grid::unit(0.5, "lines"),
-      strip.background = element_rect(fill = "#e1d9d3", color = NA),
-      axis.title.x = if(i == nrow(combinations)) element_text(size = 10) else element_blank(),
-      axis.title.y = element_blank(),
-      panel.background = element_rect(fill = "white", color = "white", linewidth = 1),
-      #panel.grid.major = element_blank(),
-      axis.line = element_blank(),
-      legend.position = "none",
-      plot.margin = grid::unit(c(0,0,0,0), "pt")
-    )
-  
-  # Pie chart
-  pie_plot <- ggplot(pie_data, aes(x = "", y = value, fill = type)) +
-    geom_bar(stat = "identity", width = 1, color = "#e1d9d3") +
-    coord_polar(theta = "y") +
-    facet_grid(taxon ~ .) +
-    scale_fill_manual(values = c("#e1d9d3", "black")) +
-    labs(x = NULL, y = NULL, fill = NULL) +
-    guides(fill = "none") +
-    theme_void() +
-    theme(
-      strip.text.y = element_blank(),
-      plot.margin = grid::unit(c(0,0,0,0), "pt")
-    )
-  
-  comb_title <- ggplot() +
-    labs(title = paste0(comb$root, " ", comb$behavior)) +
-    theme_void() +
-    theme(plot.title = element_text(size = 12, face = "bold", hjust = 0))
-  
-  plots_list[[i]] <- (bar_plot | pie_plot) + plot_layout(widths = c(6,1)) 
-
-  plots_list[[i]] <- comb_title / plots_list[[i]] + plot_layout(heights = c(0.1, 15))
-}
-
-combined <- wrap_plots(plots_list, ncol = 2)
-RF_plot <- (combined / graph_legende) + plot_layout(heights = c(100,0.5)) +
-  plot_annotation(
-    #title = "Factor contributions and explained variance in Random Forest models",
-    #subtitle = paste("Bar plots: Contribution of factors (IncMSE)","\nPie charts: Relative proportion of variance explained","\nfor spatial patterns - selection or avoidance degree - of invertebrate activity relative to roots,","\naccording to root developmental stage - growing or mature"),
-    theme = theme(
-      plot.title = element_text(size = 12, face = "bold"),
-      plot.subtitle = element_text(size = 11),
-      plot.caption = element_text(size = 10)
-    )
-  )
-RF_plot
-tiff("../output/2.randomforest_plot.tiff", width=5000, height=2000, res=400)
-print(RF_plot)
-dev.off()
-```
-
-```{r}
-rf_summary_wide <- rf_results_all %>%
-  mutate(variable_name = variable_labels[as.character(variable)]) %>%
-  group_by(taxon, root, behavior, variable_name) %>%
+#| label: global-attraction-plot
+# Statistical summary of Z-scores by Taxa and Root Type
+rhizo_results <- habitat_data_long %>%
+  group_by(Predicted.class.levelup, root_type) %>%
   summarise(
-    mean_importance = round(mean(importance, na.rm = TRUE), 2),
-    prop_importance = round(mean(importance_prop, na.rm = TRUE) * 100, 1),
-    .groups = "drop"
-  ) %>%
-  mutate(value = paste0(mean_importance, " (", prop_importance, "%)")) %>%
-  pivot_wider(
-    id_cols = c(taxon, root, behavior),
-    names_from = variable_name,
-    values_from = value,
-    names_glue = "{variable_name}<br><small>(mean / %)</small>"
-  ) %>%
-  arrange(taxon, root, behavior)
+    n = n(),
+    med_z = median(z_score, na.rm = TRUE), # Median of the normalized score
+    p_val = wilcox.test(z_score, mu = 0)$p.value, # Test if Z is sig. different from 0
+    .groups = "drop") %>%
+  mutate(
+    p_label = case_when(p_val < 0.001 ~ "***", p_val < 0.01 ~ "**", p_val < 0.05 ~ "*", TRUE ~ "ns"))
+
+# Define background zones for visualization
+bg_zones <- tibble(xmin = c(0, -Inf),xmax = c(Inf, 0),ymin = -Inf, ymax = Inf, zone = c("Avoidance","Selection"))
+
+# Visualization of the Attraction Index
+p1 <- habitat_data_long %>%
+  filter(z_score >= quantile(z_score, 0.25, na.rm = TRUE) - 1.5 * IQR(z_score, na.rm = TRUE),
+    z_score <= quantile(z_score, 0.25, na.rm = TRUE) + 1.5 * IQR(z_score, na.rm = TRUE)) %>%
+  ggplot(aes(x = z_score, y = Predicted.class.levelup)) +
+  geom_rect(data = bg_zones, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = zone), inherit.aes = FALSE, alpha = 0.15) +
+  geom_jitter(alpha = 0.1, height = 0.1, color = "grey60") +
+  geom_segment(data = rhizo_results, aes(y = Predicted.class.levelup, yend = Predicted.class.levelup, x = 0, xend = med_z),arrow = arrow(length = unit(0.20, "cm")), linewidth = 0.8, color = "#e50000") +
+  geom_vline(xintercept = 0, color = "black", linetype = "dashed", linewidth = 0.8) +
+  geom_text(data = rhizo_results, aes(x = med_z, y = Predicted.class.levelup, label = p_label), 
+            vjust = -0.5, color = "black", size = 3, fontface = "bold") +
+  facet_grid(root_type ~ .) +
+  scale_fill_manual(values = c("Selection" = "#F1F4C6", "Avoidance" = "#AAA6A4"), guide = "none") +
+  labs(x = "Standardized Attraction Index (Z-score)", 
+       y = NULL) +
+  theme_minimal() +
+  theme(panel.border = element_rect(color = "black", fill = NA, linewidth = 1.5),
+        strip.text = element_text(size = 10, face = "bold"),
+        axis.title.x = element_text(size = 9),
+        title = element_text(size = 11, face = "bold"))
 
 
-rf_summary_wide_meta <- rf_summary_wide %>%
-  left_join(
-    rf_meta_all %>%
-      select(taxon, root, behavior, n_obs, oob_error, explained_variance),
-    by = c("taxon", "root", "behavior")
-  ) %>%
-  relocate(n_obs, oob_error, explained_variance, .after = behavior) %>%
-  arrange(taxon, root, behavior) %>%
-  rename(
-    "n<br><small>(obs)</small>" = n_obs,
-    "OOB<br><small>(error rate)</small>" = oob_error,
-    "Explained<br><small>variance</small>" = explained_variance,
-    "Taxon" = taxon,
-    "Root type" = root,
-    "Behavior" = behavior
-  )
-
-
-
-kable_rf_results <- rf_summary_wide_meta %>%
-  kable(
-    format = "html",
-    escape = FALSE,  # nécessaire pour interpréter <br>
-    digits = 2
-  ) %>%
-  kable_styling(
-    font_size = 13,
-    position = "center",
-    full_width = FALSE,
-    bootstrap_options = c("striped", "hover", "condensed")
-  ) %>%
-  add_header_above(c(
-    " " = 3,
-    "Model performance" = 3,
-    "Variable importances" = ncol(rf_summary_wide_meta) - 6
-  )) %>%
-  column_spec(
-    1:ncol(rf_summary_wide_meta),
-    extra_css = "vertical-align:middle;text-align:center;white-space:normal;word-wrap:break-word;",
-    background = "white"
-  ) %>%
-  collapse_rows(columns = 1:3, valign = "top")
-
-
-
-save_kable(kable_rf_results, "../output/S1_table_rf_results.html")
-invisible(webshot("../output/S1_table_rf_results.html",
-        file = "../output/S1_table_rf_results.png", zoom = 2))
+p1 + labs(title = "Rhizosphere Attraction Index",
+       subtitle = "Negative Z-scores indicate active selection of the root zone")
+tiff("../output/1.zscore_distribution.tiff", width = 1500, height = 1000, res = 300)
+p1
+dev.off()
 ```
 
-## 3. Environmental context and spatial organization
+The analysis reveals significant, taxa-specific attraction to the root surface, particularly for Collembola and Gastropoda. The strength of this selection varies by root type, suggesting that biological drivers—such as root exudation—shape spatial clustering beyond what is expected by chance.
 
-Heatmaps of significant interactions between habitat-scale context factors and local microhabitat conditions on the spatial patterns of invertebrate taxa with functional root zones. Tile color indicates the predictor, alpha transparency reflects significance (p \< 0.05). Rows correspond to taxa (all, Collembola, Gastropoda, Acari), and facets show combinations of root type and behavioral pattern.
+### *Defining the rhizosphere width*
 
-```{r}
-shap_results_all <- shap_results_all %>%
-  mutate( root_type = recode(root_type,
-                    growth = "growing roots",
-                    mature = "mature roots"),
-    behavior = factor(behavior, levels = c("avoidance","selection")),
-    root_type = factor(root_type, levels = c("growing roots", "mature roots")),
-    taxon = factor(taxon, levels = c("acari","collembola",  "gastropoda"))
-  )
-
-# Variables typology
-shap_results_all <- shap_results_all %>%
-  mutate(type_variable = case_when(
-    variable %in% c("temp","temp_soil_amplitude") ~ "Température",
-    variable %in% c("hum", "hum_soil_amplitude") ~ "Humidity",
-    variable %in% c("root_cm2_count", "root_growth_cm2_count_24h") ~ "Ressource",
-    variable %in% c("invertebrate_count", "predators_count") ~ "Biotiques",
-    TRUE ~ "Autres"
-  ))
-
-shap_results_all$variable <- factor(
-  shap_results_all$variable,
-  levels = shap_results_all %>%
-    arrange(type_variable) %>%
-    pull(variable) %>%
-    unique()
-)
-
-shap_results_all <- shap_results_all %>%
-  left_join(df_all %>% select(-diff) %>% mutate(root_type = recode(root_type,
-                    growth = "growing roots",
-                    mature = "mature roots")), by = c('image_name', 'behavior', 'root_type'))
-
-# shap values standardization
-shap_results_all <- shap_results_all%>% 
-  drop_na()%>%
-  #mutate(shap = scale(shap)[,1]) %>%  
-  ungroup()
-```
-
-First, we must test the normality of our data to choose either parametric or not test :
+To identify the precise spatial extent of root influence, we model animal density as a function of distance using GAMs. We incorporate a geometric correction (log-area offset) to account for the increasing soil volume available at greater distances from the root. The root influence zone tipping point is defined as the distance where the first derivative of the model plateau, indicating that the root's influence on animal density has vanished.
 
 ```{r}
-test_normality_groups <- function(df) {
-  df %>%
-    filter(!is.na(shap)) %>%
-    summarise(
-      n = n(),
-      p.value = if (n < 3) NA_real_ else {
-        x <- shap
-        if (length(x) > 5000) { set.seed(123); x <- sample(x, 5000) }
-        tryCatch(shapiro.test(x)$p.value, error = function(e) NA_real_)
-      }
-    ) %>%
-    mutate(normal = ifelse(is.na(p.value), FALSE, p.value > 0.05))
-}
+#| label: riz-extraction
+### 1. Data Binning and Geometric Area Correction 
+max_dist <- 10
+bin_w <- 0.1 #cm
 
-normality_table <- map_dfr(
-  unique(shap_results_all$taxon),
-  function(taxon_i) {
-    df_taxon <- shap_results_all %>% filter(taxon == !!taxon_i) 
-    combos <- df_taxon %>% distinct(root_type, behavior)
-    map_dfr(1:nrow(combos), function(i) {
-      rt <- combos$root_type[i]
-      bh <- combos$behavior[i]
-      df_sub <- df_taxon %>% filter(root_type == !!rt, behavior == !!bh)
-      
-      map_dfr(context_factors, function(ctx) {
-        map_dfr(predictors, function(pred) {
-          df_pred <- df_sub %>% filter(variable == !!pred)
-          if (nrow(df_pred) == 0) return(tibble(
-            taxon = taxon_i, root_type = rt, behavior = bh,
-            context = ctx, context_level = NA_character_,
-            predictor = pred, n = 0L, normal = FALSE
-          ))
-          
-          levels_ctx <- unique(df_pred[[ctx]])
-          map_dfr(levels_ctx, function(lv) {
-            df_group <- df_pred %>% filter(.data[[ctx]] == lv)
-            res <- test_normality_groups(df_group)
-            tibble(taxon = taxon_i,root_type = rt,behavior = bh,context = ctx,context_level = as.character(lv), predictor = pred,n = res$n,normal = res$normal)
-          })
-        })
-      })
-    })
-  }
-)
+# Calculate the number of animals per distance bin and the available area.
+rhizo_decay_data <- habitat_data_long %>%
+  # Filter out distances that are too large and biased by edge effects
+  filter(obs <= max_dist) %>%
+  # Create bins and assign observations to the midpoint of the bin
+  mutate(dist_bin = floor(obs / bin_w) * bin_w + bin_w/2) %>%
+  group_by(dist_bin, Predicted.class.levelup, root_type) %>%
+  summarise(n_animals = n(), .groups = "drop") %>%
+  # GEOMETRIC CORRECTION: Calculate the area of the concentric ring (annulus).
+  # As distance (r) increases, the sampled area increases proportionally.
+  # Area = pi * (R_outer^2 - R_inner^2)
+  mutate(area = pi * ((dist_bin + bin_w/2)^2 - (dist_bin - bin_w/2)^2))
 
-cat(
-  "TRUE proportion:", mean(normality_table$normal, na.rm = TRUE),
-  "\nFALSEproportion:", mean(!normality_table$normal, na.rm = TRUE), "\n"
-)
-```
-
-```{r}
-# Function to adjust the comparison test by dataset, context_factor, and predictor
-fit_model_single_shap <- function(df_subset, context, predictor) {
-  df_pred <- df_subset %>% filter(variable == predictor) %>% drop_na(shap)
-  if(nrow(df_pred) < 5) return(NULL)
-
-  if(!context %in% names(df_pred)) return(NULL)
-  df_pred[[context]] <- as.factor(df_pred[[context]])
-  sizes <- table(df_pred[[context]])
-  if(length(sizes) < 2 || any(sizes < 2)) return(NULL)
-
-  mod <- tryCatch(wilcox.test(shap ~ get(context), data = df_pred), error = function(e) NULL)
-  if(is.null(mod)) return(NULL)
-
+### 2. GAM Fitting and Derivative Analysis
+extract_gam_stats <- function(df) {
+  # Minimum data threshold to ensure model stability
+  if (n_distinct(df$dist_bin) < 5 || sum(df$n_animals) < 10) return(NULL)
+  
+  # MODEL: Generalized Additive Model (GAM)
+  # Family = quasipoisson
+  # Offset = log(area): Treats the sampled area as an 'exposure' variable. 
+  # This converts the raw count model into a density model (count/area) 
+  # without the statistical pitfalls of using ratios directly.
+  model <- tryCatch({
+    gam(n_animals ~ s(dist_bin, k = 5), 
+        offset = log(area), 
+        data = df, 
+        family = nb())
+  }, error = function(e) return(NULL))
+  
+  if (is.null(model)) return(NULL)
+  
+  # RHIZOSPHERE IDENTIFICATION 
+  # We use the first derivative (slope) of the model to find where 
+  # the influence of the root stops (the plateau).
+  eval_pts <- data.frame(dist_bin = seq(0.05, 10, length.out = 200))
+  derivs <- derivatives(model, data = eval_pts, type = "forward")
+  
+  # STATISTICAL TIPPING POINT:
+  # The RIZ is defined as the distance where the 95% Confidence Interval 
+  # of the derivative first includes zero. At this point, the density 
+  # slope is no longer significantly different from a horizontal line.
+  riz_val <- derivs %>%
+    mutate(lower = .derivative - 1.96 * .se,
+           upper = .derivative + 1.96 * .se) %>%
+    # Filter out the first 0.5cm to avoid noise near the root surface
+    filter(dist_bin > 0.5, (lower < 0 & upper > 0) | lower > 0) %>% 
+    slice(1) %>% 
+    pull(dist_bin)
+  
+  #MODEL VALIDATION TESTS
+  res <- simulateResiduals(model, n = 250, plot = FALSE)
+  test_ks <- testUniformity(res, plot = FALSE)$p.value             # Distribution test
+  test_disp <- testDispersion(res, plot = FALSE)$p.value # Surdispersion test
+  test_out <- testOutliers(res, plot = FALSE)$p.value   # Outliers tests
+  
+  # RESULTS SUMMARY 
   tibble(
-    term = context,
-    statistic = as.numeric(mod$statistic),
-    p.value = mod$p.value,
-    method = mod$method,
-    context_factor = context,
-    predictor = predictor
+    edf = summary(model)$edf,             # Complexity of the curve (1 = linear)
+    p_val = summary(model)$s.pv,          # Significance of the spatial pattern
+    dev_expl = summary(model)$dev.expl * 100, # % of variance explained by root distance
+    riz_cm = if(length(riz_val) > 0) riz_val else NA_real_, # Distance of influence
+    n_total = sum(df$n_animals),           # Total count for the group
+    check_ks = test_ks,     # If < 0.05, distribution shape problem
+    check_disp = test_disp, # If < 0.05, overdispersion (justifies the quasi-Poisson distribution)
+    check_out = test_out   # If < 0.05, too many outliers
   )
 }
 
-# Loop over each dataset / root_type / behaviour
-results_all_shap <- map_dfr(unique(shap_results_all$taxon), function(taxon) {
-  df <- shap_results_all %>% filter(taxon == !!taxon)
-  
-  combinations <- df %>% distinct(root_type, behavior)
-  
-  map_dfr(1:nrow(combinations), function(i) {
-    root_type <- combinations$root_type[i]
-    behavior <- combinations$behavior[i]
-    
-    df_subset <- df %>% 
-      filter(root_type == !!root_type, behavior == !!behavior)
-    
-    map_dfr(context_factors, function(ctx) {
-      map_dfr(predictors, function(pred) {
-        fit_model_single_shap(df_subset, ctx, pred)
-      })
-    }) %>%
-      mutate(root_type = root_type,
-             behavior = behavior,
-             taxon = taxon)
-  })
-})
+rhizo_stats_table <- rhizo_decay_data %>%
+  group_by(Predicted.class.levelup, root_type) %>%
+  do(extract_gam_stats(.))
 
+# 3. Tabular Presentation
+n_rows <- nrow(rhizo_stats_table)
+t1 <- rhizo_stats_table %>%
+  select(-check_ks, -check_disp, -check_out)%>%
+  rename(taxa = Predicted.class.levelup, `root Type` = root_type,
+         `complexity (EDF)` = edf, `p-value` = p_val, `dev. Expl (%)` = dev_expl,
+         `RIZ (cm)` = riz_cm, `n total` = n_total) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+  kbl(#caption = "Identification of the rhizosphere width through derivative analysis of animal density gradients", 
+    booktabs = TRUE, align = "c", format = "html",escape = FALSE) %>%
+  kable_styling(bootstrap_options = c("hover", "condensed"), position = "center") %>%
+  row_spec(0:n_rows,extra_css = "border-bottom: 2px solid #dee2e6;") %>%
+  row_spec(1:n_rows, background = "white") %>%
+  row_spec(0, bold = TRUE, background = "#f2f2f2") %>%
+  column_spec(4, color = spec_color(rhizo_stats_table$p_val, end = 0.1, direction = -1)) %>%
+  column_spec(6, bold = T, border_left = "3px solid #b20000", border_right = "3px solid #b20000") %>%
+  collapse_rows(columns = 1:3, valign = "top")
+t1 
 
-# Add significance
-results_all_shap <- results_all_shap %>%
-  mutate(sig = case_when(
-    p.value < 0.001 ~ "***",
-    p.value < 0.01 ~ "**",
-    p.value < 0.05 ~ "*",
-    TRUE ~ "ns"
-  ))
+save_kable(t1, "../output/2.rhizosphere_width.html")
+invisible(webshot("../output/2.rhizosphere_width.html",
+        file = "../output/2.rhizosphere_width.png", zoom = 2))
+```
 
-make_heatmap_shap <- function(df, context_factor_name) {
-  df %>%
-    filter(context_factor == context_factor_name) %>%
-    select(root_type, behavior, predictor, taxon, p.value) %>%
-    mutate(
-      alpha_level = ifelse(p.value > 0.05, 0.35, 0.9),
-      variable_labels = variable_labels[predictor], 
-      variable_labels = factor(variable_labels, levels = rev(variable_labels[predictors])), 
-      taxon = factor(taxon, levels = c("gastropoda","collembola","acari"))
-    ) %>%
-    ggplot(aes(x = variable_labels, y = taxon)) +
-    geom_tile(aes(fill = variable_labels, alpha = alpha_level),
-              color = "white", linewidth = 1) +
-    scale_fill_manual(values = factor_palette_eng, guide = "none") +
-    scale_alpha_continuous(guide = "none", limits = c(0.3,1)) +
-    facet_grid(root_type ~ behavior) +
-    theme_minimal() +
-    labs(x = NULL, y = NULL,
-         title = context_labels[context_factor_name]) +
-    theme(
-      panel.grid = element_blank(),
-      strip.text.x = element_text(size = 11, face = "bold"),
-      strip.text.y = element_text(size = 11, face = "bold"),
-      plot.title = element_text(size = 12, face = "bold"),
-      axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 7)
-    )
-}
+## 2. The geometric niche: habitat availability constraint
 
-plot_depth <- make_heatmap_shap(results_all_shap, "depth")
-plot_land_use <- make_heatmap_shap(results_all_shap, "land_use")
-heatmap_plot <- plot_depth / plot_land_use
-heatmap_plot
-tiff("../output/3.heatmap_plot.tiff", width=3000, height=3500, res=400)
-print(heatmap_plot)
-dev.off()
+### *Are fauna close to the root by choice (attraction) or necessity (habitat saturation) ?*
+
+While attraction is a key driver, the physical presence of roots inherently constrains the available habitat. As root density increases, bulk soil volume diminishes, mathematically increasing the probability of fauna-root encounters regardless of biological preference. To isolate the true "biological signal," we modeled the deviation between observed and expected distances ($Obs - Exp$) across a root density gradient. We utilized a Generalized Additive Model (GAM) with a Student-t (scat) distribution to account for the heavy-tailed nature of ecological distance data.
+
+```{r}
+#| label: geometric-constraint-model
+#| results: hide
+#| fig-show: hide
+# Modeling the gap (Obs - Exp) as a function of root density
+mod_delta <- gam(
+    (obs - exp) ~ Predicted.class.levelup + root_type +
+    s(root_cm2_count,  by = interaction(root_type, Predicted.class.levelup,  drop = TRUE), k=5) + 
+    s(period, bs = "re") + 
+    s(scanner, bs = "re"),
+  data = habitat_data_long, 
+  family = scat(),
+  method = "REML"
+)
+
+# Check model performances
+#gam.check(mod_delta, rep = 1000)
+plot(DHARMa::simulateResiduals(mod_delta))
+
+# Extract significance for plot annotation
+s_tab <- as.data.frame(summary(mod_delta)$s.table) %>%
+  tibble::rownames_to_column("smooth") %>%
+  filter(grepl("root_cm2_count", smooth)) %>%
+  mutate(
+    p_label = cut(`p-value`, 
+                  breaks = c(-Inf, 0.001, 0.01, 0.05, Inf), 
+                  labels = c("***", "**", "*", "ns")),
+    group_str = gsub("s\\(root_cm2_count\\):interaction\\(root_type, Predicted.class.levelup, drop = TRUE\\)", "", smooth)
+  ) %>%
+  separate(group_str, into = c("root_type", "Predicted.class.levelup"), sep = "\\.")
+
+# Augment data for plotting
+habitat_delta <- safe_augment(mod_delta, habitat_data_long, "delta")
 ```
 
 ```{r}
-shap_distrib_depth <- shap_results_all %>%
-  mutate(taxon = factor(taxon, levels = rev(taxon_order))) %>%
-  left_join(
-    results_all_shap %>% 
-      filter(context_factor == "depth") %>%
-      select(predictor, root_type, behavior, taxon, sig) %>%
-      rename(variable = predictor),
-    by = c("variable", "root_type", "behavior", "taxon")
-  ) %>%
-  drop_na() %>%
-  mutate(
-    taxon_short = paste0(str_sub(as.character(taxon), 1, 4), "."), 
-    variable_labels = variable_labels[variable],
-    variable_labels = factor(variable_labels, levels = rev(variable_labels[predictors])),
-    alpha_violin = ifelse(sig == "ns", 0.15, 0.8)
-  ) %>%
-  ggplot(aes(
-    x = variable_labels,
-    y = shap,
-    color = variable_labels,
-    fill = variable_labels,
-    group = depth,
-    shape = depth,
-    alpha = alpha_violin
-  )) +
-  geom_hline(yintercept = 0, color = "lightgrey") +
-  stat_summary(fun = median, geom = "point", size = 1.5, position = position_dodge(width = 0.4)) +
-  stat_summary(fun.data = median_hilow, geom = "errorbar", width = 0.2, position = position_dodge(width = 0.4)) +
-  ggh4x::facet_nested(
-    root_type + taxon_short ~ behavior,
-    space = "free_y",
-    strip = strip_nested(size = "variable")) +
-  scale_color_manual(values = factor_palette_eng, guide = "none") +
-  scale_fill_manual(values = factor_palette_eng, guide = "none") +
-  scale_alpha_identity() +
-  scale_shape_manual(values = c("20" = 24, "50" = 25))+
-  scale_x_discrete(labels = function(x) str_wrap(x, width = 30)) +
-  theme_minimal() +
-  coord_cartesian(ylim = c(-1.5, 1.5)) +
-  labs(y = "SHAP value", x = NULL) +
-  theme(
-    strip.placement = "outside",
-    panel.grid.minor = element_blank(),
-    panel.grid.major = element_blank(),
-    strip.text.x = element_text(size = 10, face = "bold"),
-    strip.text.y = element_text(size = 10, face = "bold"),
-    axis.text.y = element_text(size = 7),
-    axis.title.y = element_text(size=8),
-    legend.position = "bottom",
-    axis.text.x = element_text(angle = 40, hjust = 1, vjust = 1, size = 7),
-    panel.border = element_rect(color = "#e5e5e5", fill = NA, linewidth = 1),
-    plot.margin = margin(0, 0, 0, 0),
-    legend.margin = margin(0, 0, 0, 0),
-    legend.box.margin = margin(0, 0, -5, 0))
+#| label: geometric-constraint-plot
+p2 <- ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
+  geom_hline(yintercept = 0, 
+             color = "black", size = 0.5, alpha = 0.3) +
+  # The 95% Confidence Interval Envelope
+  geom_ribbon(aes(ymin = delta.fitted - 1.96 * delta.se.fit, 
+                  ymax = delta.fitted + 1.96 * delta.se.fit), 
+              fill = "#002651", alpha = 0.1) +
+  # The Original Fitted Points: Points are colored if they represent active attraction 
+  geom_point(aes(color = delta.fitted), size = 1, alpha=0.4) +
+  scale_color_gradient2(low = "#b20000", mid = "#FFD93D",high = "white",   midpoint = 0) +
+  coord_cartesian(ylim = c(-2, 1))+
+  # The Rug Plot (Shows data density on the X-axis)
+  geom_rug(alpha = 0.2, color = "black", #sides = "b"
+           ) +
+  # Significance Annotations
+  geom_text(data = s_tab, aes(x = Inf, y = -Inf, label = paste("Significance:", p_label)),hjust = 1.5, vjust = -3, inherit.aes = FALSE, size=2,fontface = "bold") +
+  
+  facet_grid(root_type ~ Predicted.class.levelup, scales = "free") +
+  # Styling
+  labs(x = "Root density scaled", y = "Obs − Exp Fitted Distance (cm)",color = "Index") +
+  theme_bw() +
+  theme(panel.border = element_rect(color = "grey", fill = NA, linewidth = 0.1),
+  panel.grid.minor = element_blank(),
+  strip.background = element_rect(fill = "white", color = NA),
+  strip.text = element_text(size = 9, face = "bold"),
+  axis.title.x = element_text(size = 9),
+  title = element_text(size=10))
 
-shap_distrib_land_use <- shap_results_all %>%
-  mutate(taxon = factor(taxon, levels = rev(taxon_order))) %>%
-  left_join(
-    results_all_shap %>% 
-      filter(context_factor == "land_use") %>%
-      select(predictor, root_type, behavior, taxon, sig) %>%
-      rename(variable = predictor),
-    by = c("variable", "root_type", "behavior", "taxon")
-  ) %>%
-  drop_na() %>%
-  mutate(
-    taxon_short = paste0(str_sub(as.character(taxon), 1, 4), "."), 
-    variable_labels = variable_labels[variable],
-    variable_labels = factor(variable_labels, levels = rev(variable_labels[predictors])),
-    alpha_violin = ifelse(sig == "ns", 0.15, 0.8)
-  ) %>%
-  ggplot(aes(
-    x = variable_labels,
-    y = shap,
-    color = variable_labels,
-    fill = variable_labels,
-    group = land_use,
-    shape = land_use,
-    alpha = alpha_violin
-  )) +
-  geom_hline(yintercept = 0, color = "lightgrey") +
-  stat_summary(fun = median, geom = "point", size = 1.5, position = position_dodge(width = 0.4)) +
-  stat_summary(fun.data = median_hilow, geom = "errorbar", width = 0.2, position = position_dodge(width = 0.4)) +
-  ggh4x::facet_nested(
-    root_type + taxon_short ~ behavior,
-    space = "free_y",
-    strip = strip_nested(size = "variable")
-  ) +
-  scale_color_manual(values = factor_palette_eng, guide = "none") +
-  scale_fill_manual(values = factor_palette_eng, guide = "none") +
-  scale_alpha_identity() +
-  scale_shape_manual(values = c("A" = 8, "C" = 19))+
-  scale_x_discrete(labels = function(x) str_wrap(x, width = 30)) +
-  theme_minimal() +
-  coord_cartesian(ylim = c(-1.5, 1.5)) +
-  labs(y = "SHAP value", x = NULL) +
-  theme(
-    strip.placement = "outside",
-    panel.grid.minor = element_blank(),
-    panel.grid.major = element_blank(),
-    strip.text.x = element_text(size = 10, face = "bold"),
-    strip.text.y = element_text(size = 10, face = "bold"),
-    axis.title.y = element_text(size=7),
-    axis.text.y = element_text(size = 8),
-    legend.position = "bottom",
-    axis.text.x = element_text(angle = 40, hjust = 1, vjust = 1, size = 7),
-    panel.border = element_rect(color = "#e5e5e5", fill = NA, linewidth = 1),
-    plot.margin = margin(0, 0, 0, 0),
-    legend.margin = margin(0, 0, 0, 0),
-    legend.box.margin = margin(0, 0, -5, 0))
-
-
-distrib_plot <- shap_distrib_depth / shap_distrib_land_use 
-
-
-distrib_plot
-
-tiff("../output/S1.shap_values_distribution_plot.tiff", width=2500, height=4000, res=300)
-print(distrib_plot)
+p2 + labs(
+    title = "Biological selection vs. geometric constraint",
+    subtitle = "Negative values represent active biological attraction beyond spatial probability")
+tiff("../output/3.geometric_constraint.tiff", width = 2200, height = 1400, res = 300)
+p2
 dev.off()
 ```
+
+Growing Roots: Biological attraction remains relatively stable across the density gradient, suggesting that high-quality growth zones (e.g., exudates) provide a signal strong enough to overcome the geometric noise of increasing root surface area.
+
+Mature Roots: These systems exhibit a "convergence" effect where biological deviation tends toward zero at high densities. This indicates that in dense mature networks, fauna proximity is increasingly governed by habitat availability constraints rather than active selection.
+
+## 3. The selection - demography link : trait or by-product ?
+
+### *Is root selection a mechanical consequence of high population density or a functional driver of invertebrate success ?*
+
+We tested two competing hypotheses to explain the relationship between spatial behavior and population dynamics: a mechanistic approach, which tests whether demographic processes dictate spatial behavior, and a functional approach, which tests whether the ability to locate and exploit roots leads to population growth.
+
+```{r}
+#| label: data-prep
+# Using sqrt transformation as it provided the best fit
+data_growth <- habitat_delta %>%
+  group_by(image_name, Predicted.class.levelup, root_type) %>%
+  mutate(abundance = sqrt(n())) %>%
+  ungroup() %>%
+  group_by(scanner, period, Predicted.class.levelup, root_type) %>%
+  mutate(lag1_delta_resid = lag(delta.resid, n = 1),
+    lag2_delta_resid = lag(delta.resid, n = 2))%>%
+  select(-delta.sigma)%>%
+  drop_na()
+```
+
+#### **1. Mechanistic hypothesis: Do demographic processes dictate spatial behaviour?**
+
+*"The intensity of root selection is a behavioural response constrained by population density (density dependence)."*
+
+Model :
+
+`gam(delta.resid ~ Predicted.class.levelup + root_type +  s(abundance, by = interaction(Predicted.class.levelup, root_type, drop=TRUE), k=10) + s(scanner, bs="re")+ s(period, bs="re"),family = gaussian(link = "identity"), method = "REML", select = TRUE, data = data_growth)`
+
+```{r}
+#| label: mecanistic-approach
+mecanistic_model <- gam(delta.resid ~ Predicted.class.levelup + root_type + 
+                          s(abundance, by = interaction(Predicted.class.levelup, root_type, drop=TRUE), k=10) + 
+                        s(scanner, bs="re")+ s(period, bs="re"), 
+                        family = gaussian(link = "identity"), 
+                        method = "REML", 
+                        select = TRUE,
+                        data = data_growth)
+
+
+#model performance
+#gam.check(mecanistic_model, rep = 1000)
+plot(DHARMa::simulateResiduals(mecanistic_model))
+
+#model results
+tidy(mecanistic_model) %>% 
+  filter(p.value < 0.05) %>% 
+  select(term, edf, p.value)
+#data_growth <- safe_augment(mecanistic_model, data_growth, "mech") # not working with lag
+#gratia::draw(mecanistic_model, parametric = FALSE) 
+```
+
+#### **2. Functional approach : Does an organism's ability to locate and exploit the root result in an increase in its population?**
+
+*As an "oasis" of resources (exudates, associated microflora, moisture), the root is not just a place where they happen to be, but a driver of their population dynamics. If a taxon is able to effectively 'select' roots (for mucus, exudates or microhabitats), it gains access to more energy, which promotes its reproduction and therefore its overall abundance.*
+
+Model :
+
+`gam(abundance ~ Predicted.class.levelup + root_type + s(delta.resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=10) + s(scanner, bs="re")+ s(period, bs="re"), Gamma(link = "log"), data = data_growth,method = "REML", select = TRUE)`
+
+```{r}
+#| label: functionnal approach
+functionnal_model <- gam(abundance ~ Predicted.class.levelup + root_type + 
+                          s(delta.resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=10) 
+                         + s(scanner, bs="re")+ s(period, bs="re"),
+                         Gamma(link = "log"), 
+                         data = data_growth,
+                         method = "REML", 
+                         select = TRUE)
+
+#model performance
+#gam.check(functionnal_model, rep = 1000)
+plot(DHARMa::simulateResiduals(functionnal_model))
+
+#model results
+tidy(functionnal_model) %>% 
+  filter(p.value < 0.05) %>% 
+  select(term, edf, p.value)
+#data_growth <- safe_augment(functionnal_model, data_growth, "func")
+#gratia::draw(functionnal_model, parametric = FALSE) 
+```
+
+```{r}
+summary_table <- bind_rows(
+  glance(mecanistic_model) %>% mutate(model = "Mechanistic"),
+  glance(functionnal_model) %>% mutate(model = "Functional")
+) %>%
+  select(model, adj.r.squared, deviance, AIC, BIC, df, nobs)
+
+kable(summary_table, digits = 3, col.names = c("Model", "Adj. R²", "Deviance", "AIC", "BIC", "df", "N Obs."),
+      caption = "Statistical comparison between Mechanistic and Functional models",
+      booktabs = TRUE, align = "c") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+Demographic processes (population density) do not explain spatial selection patterns ($R^2 \approx 0.008$). Conversely, biological selection significantly influences demographic processes ($R^2 \approx 0.54$).
+
+Surprisingly, our results initially appeared to contradict the "functional oasis" hypothesis. Instantaneous abundance was lower where selection was most intense, suggesting that the local carrying capacity is not influenced by the ability to exploit the rhizosphere, but rather the ability not to exploit it.
+
+#### **Could there be a phase shift between the selection behaviour of growing roots and demographic success?**
+
+We introduced temporal lags (Lag 1 and Lag 2) into our GAMs to determine if there is a phase shift between selection behavior and demographic success.
+
+Model :
+
+`gam (abundance ~ Predicted.class.levelup + root_type + s(lag1_delta_resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=10) + s(lag2_delta_resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=10) + s(delta.resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=10) + s(scanner, bs="re")+ s(period, bs="re"), Gamma(link = "log"), data = data_growth, method = "REML", select = TRUE)`
+
+```{r}
+#| label: functionnal temporal approach
+functionnal_lag_model <- gam(abundance ~ Predicted.class.levelup + root_type + 
+                          s(lag1_delta_resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=10) + 
+                          s(lag2_delta_resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=10) + 
+                          s(delta.resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=10) 
+                         + s(scanner, bs="re")+ s(period, bs="re"),
+                         Gamma(link = "log"), 
+                         data = data_growth,
+                         method = "REML", 
+                         select = TRUE)
+
+#model performance
+#gam.check(functionnal_lag_model, rep = 1000)
+plot(DHARMa::simulateResiduals(functionnal_lag_model))
+
+#model results
+#summary(functionnal_lag_model)
+#gratia::draw(functionnal_lag_model, parametric = FALSE) 
+tidy(functionnal_lag_model) %>% 
+  filter(p.value < 0.05) %>% 
+  select(term, edf, p.value)
+# smooth estimates model extraction
+sm <- smooth_estimates(functionnal_lag_model,n = 100,unconditional = TRUE,overall_uncertainty = TRUE)
+
+plot_data <- sm %>%
+  filter(str_detect(.smooth, "delta.resid")) %>%
+  mutate(
+    lag_type = case_when(
+      str_detect(.smooth, "lag1") ~ "Lag 1",
+      str_detect(.smooth, "lag2") ~ "Lag 2",
+      TRUE ~ "Lag 0"
+    ),
+    # Use coalesce to create a single x variable
+    x_val = coalesce(delta.resid, lag1_delta_resid, lag2_delta_resid)
+  ) %>%
+  # Split interaction term for faceting
+  separate(
+    `interaction(Predicted.class.levelup, root_type, drop = TRUE)`,
+    into = c("class", "root"),
+    sep = "\\."
+  )
+
+# Plot
+plot_data%>%
+mutate(lag_type = factor(lag_type, levels = c("Lag 2", "Lag 1", "Lag 0"))) %>%
+ggplot(aes(x = x_val, y = .estimate, group = lag_type)) +
+  geom_hline(yintercept = 0, linewidth = 0.5)+
+  geom_ribbon(
+    aes(
+      ymin = .estimate - .se,
+      ymax = .estimate + .se,
+      fill = lag_type
+    ),
+    alpha = 0.15
+  ) +
+  geom_line(aes(color = lag_type), linewidth = 1.5) +
+  facet_grid(root ~ class, scales = "free_y") +
+  labs(
+    title = "Comparison of selection effects across temporal lags",
+    x = "Selection intensity (delta.resid)",
+    y = "Partial effect on abundance (log scale)",
+    color = "Lag",
+    fill = "Lag"
+  ) +
+  scale_fill_manual(values = c("#FAB12F", "#FA812F", "#DD0303")) +
+  scale_color_manual(values = c("#FAB12F", "#FA812F", "#DD0303")) +
+  theme_bw() +
+  theme(
+    panel.border = element_rect(color = "grey", fill = NA, linewidth = 0.1),
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "white", color = NA),
+    strip.text = element_text(size = 12, face = "bold"),
+    axis.title.x = element_text(size = 12),
+    legend.position = "bottom",
+    plot.title = element_text(size = 12)
+  )
+```
+
+By decoupling spatial behavior from population dynamics, we demonstrate that rhizosphere selection seems to be a functional trait, but its benefits are subject to a time lag. Maximum abundance does not coincide with immediate active selection, but rather with the memory of selection. This suggests a "legacy effect" where the energetic gains from foraging in high-quality root zones (e.g., during peak exudation) require a specific period to manifest as a measurable increase in population density through reproduction or recruitment ?
