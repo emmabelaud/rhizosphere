@@ -11,7 +11,7 @@ execute:
 
 ## Generating data on habitat use and availability for observed fauna
 
-This script quantifies habitat selection by soil invertebrates using spatially explicit environmental data. For each invertebrate detection (defined as the centroid of the bounding box), values of distance-based habitat variables are extracted from raster layers, representing observed habitat use.
+This script quantifies root habitat selection by soil invertebrates. For each invertebrate detection (defined as the centroid of the bounding box), values of distance-based habitat variables are extracted from raster layers, representing observed habitat use.
 
 To characterise habitat availability, a use–availability framework is implemented at the level of individual detections. For each observed detection, 50 random locations are generated within the spatial extent of the corresponding image. Environmental variables are extracted at these random locations, and the mean and standard deviation of each variable are computed. These summary statistics are then associated with the corresponding detection as estimates of expected (i.e., available) habitat conditions.
 
@@ -26,7 +26,7 @@ library(stringr)
 # Parameters
 # ===============================
 
-output_file <- "../data/distance_habitat_data.csv"
+output_file <- "../output/distance_habitat_data.csv"
 tif_dir     <- "/media/ebelaud/INTENSO/output_raster"
 
 selected_vars <- c(
@@ -190,48 +190,4 @@ final_table <- observed_table %>%
 
 write.csv(final_table, output_file, row.names = FALSE)
 writeLines(failed_images, "../data/failed_images.txt")
-```
-
-Consistency check: processed images vs reference image bank
-
-```{r}
-# Load the reference list of images expected to be processed
-# (one image per line, with file extension)
-image_bank <- readLines("../output/image_bank.txt")
-
-# Remove the .png extension to match the 'image_name' format
-# used throughout the processing pipeline
-image_bank <- tools::file_path_sans_ext(image_bank)
-
-# Extract the list of unique images actually present in the final dataset
-images_csv <- unique(final_table$image_name)
-
-# Images expected but missing
-
-# Identify images listed in image_bank but absent from the CSV output
-missing_in_csv <- setdiff(image_bank, images_csv)
-
-# Number of missing images
-length(missing_in_csv)
-
-# Names of missing images (likely skipped due to processing errors)
-missing_in_csv
-
-
-# Unexpected images
-# Identify images present in the CSV output but not listed in image_bank
-unexpected_in_csv <- setdiff(images_csv, image_bank)
-
-# Number of unexpected images
-length(unexpected_in_csv)
-
-# Names of unexpected images (potential upstream filtering or naming issue)
-unexpected_in_csv
-
-```
-
-```{r}
-df_a <- read.csv("file_a.csv")
-df_b <- read.csv("file_b.csv")
-
 ```
