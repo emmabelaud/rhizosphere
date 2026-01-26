@@ -3386,9 +3386,9 @@ background-color: #ffe6e6;
 <table class="caption-top table">
 <caption>Dataset Characterization</caption>
 <colgroup>
-<col style="width: 27%">
-<col style="width: 36%">
-<col style="width: 36%">
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
 </colgroup>
 <tbody>
 <tr class="odd">
@@ -3455,21 +3455,32 @@ SUCCESS: No missing data.</code></pre>
 <div class="cell-output cell-output-stdout">
 <pre><code>
 ==========================================
+  INTEGRITY REPORT:  distance_habitat_data.csv 
+==========================================
+Expected Unique IDs:  678 
+Actual Unique Found:  672 
+Coverage Rate:        99.12 %
+
+MISSING DATA ( 6  items):
+[1] &quot;AF_A50_E_2025-04-22_12H01M&quot; &quot;AF_A50_E_2025-04-25_12H00M&quot;
+[3] &quot;AF_A50_E_2025-04-26_12H00M&quot; &quot;AF_C20_E_2025-04-24_12H00M&quot;
+[5] &quot;AF_C50_E_2024-07-17_12H00M&quot; &quot;AF_C50_E_2024-07-19_12H00M&quot;</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+==========================================
   INTEGRITY REPORT:  distance_data_cleaned.csv 
 ==========================================
 Expected Unique IDs:  678 
-Actual Unique Found:  602 
-Coverage Rate:        88.79 %
+Actual Unique Found:  600 
+Coverage Rate:        88.5 %
 
 MISSING DATA ( 78  items):
  [1] &quot;AF_A20_E_2024-07-15_12H00M&quot; &quot;AF_A20_E_2024-07-19_12H00M&quot;
  [3] &quot;AF_A20_E_2024-07-20_12H00M&quot; &quot;AF_A20_E_2024-12-15_12H00M&quot;
  [5] &quot;AF_A20_E_2024-12-16_00H00M&quot; &quot;AF_A20_E_2025-04-25_00H00M&quot;
  [7] &quot;AF_A20_O_2024-05-29_12H01M&quot; &quot;AF_A20_O_2024-05-30_00H00M&quot;
- [9] &quot;AF_A20_O_2024-05-31_00H00M&quot; &quot;AF_A20_O_2024-07-15_00H01M&quot;
-
-EXTRA DATA ( 2  items found but not expected)
-Named ( AF_A20_E_2024-05-25_12H00M AF_A20_E_2024-05-27_12H00M</code></pre>
+ [9] &quot;AF_A20_O_2024-05-31_00H00M&quot; &quot;AF_A20_O_2024-07-15_00H01M&quot;</code></pre>
 </div>
 </div>
 <!-- -->
@@ -3949,442 +3960,449 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
   }
 });
 </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class>
-<div class="sourceCode" id="cb12" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> &quot;Rhizosphère - Image bank selection&quot;</span></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="co">    css: css/styles.css  </span></span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="co">    embed-resources: true</span></span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="co">    toc-depth: 4</span></span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span><span class="co"> </span></span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="co">  message: false</span></span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: false</span></span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
-<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>The large volume of images available in the DIAMS database makes it impossible to process them all exhaustively. It is therefore necessary to extract a relevant subset that is representative of the conditions throughout the entire period covered, while maintaining sufficient quality in terms of data completeness. The document describes the approach taken to achieve this selection.</span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
-<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
-<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(lubridate)</span>
-<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(fs)</span>
-<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">dir.exists</span>(<span class="st">&quot;../output&quot;</span>)) {</span>
-<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">dir.create</span>(<span class="st">&quot;../output&quot;</span>)</span>
-<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a><span class="fu">### Data loading</span></span>
-<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a>Data from the fauna database is being utilised.</span>
-<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-38"><a href="#cb12-38" aria-hidden="true" tabindex="-1"></a>df_fauna <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="st">&quot;../data/fauna_data.csv&quot;</span>, <span class="at">sep =</span> <span class="st">&quot;,&quot;</span>, <span class="at">na.strings =</span> <span class="fu">c</span>(<span class="st">&quot;&quot;</span>, <span class="st">&quot;NA&quot;</span>))</span>
-<span id="cb12-39"><a href="#cb12-39" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-40"><a href="#cb12-40" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-41"><a href="#cb12-41" aria-hidden="true" tabindex="-1"></a>Only metadata related to usable images (=samples) are retained, i.e. those for which fauna data are available.</span>
-<span id="cb12-42"><a href="#cb12-42" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-45"><a href="#cb12-45" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-46"><a href="#cb12-46" aria-hidden="true" tabindex="-1"></a>df <span class="ot">&lt;-</span> df_fauna <span class="sc">%&gt;%</span>  </span>
-<span id="cb12-47"><a href="#cb12-47" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(date, scanner, image_name) <span class="sc">%&gt;%</span></span>
-<span id="cb12-48"><a href="#cb12-48" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unique</span>() <span class="sc">%&gt;%</span></span>
-<span id="cb12-49"><a href="#cb12-49" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">date =</span> <span class="fu">ymd_hms</span>(date),</span>
-<span id="cb12-50"><a href="#cb12-50" aria-hidden="true" tabindex="-1"></a>    <span class="at">position =</span> <span class="fu">substr</span>(scanner, <span class="dv">4</span>, <span class="dv">4</span>),</span>
-<span id="cb12-51"><a href="#cb12-51" aria-hidden="true" tabindex="-1"></a>    <span class="at">depth =</span> <span class="fu">substr</span>(scanner, <span class="dv">5</span>, <span class="dv">6</span>),</span>
-<span id="cb12-52"><a href="#cb12-52" aria-hidden="true" tabindex="-1"></a>    <span class="at">orientation =</span> <span class="fu">substr</span>(scanner, <span class="dv">8</span>, <span class="dv">8</span>),</span>
-<span id="cb12-53"><a href="#cb12-53" aria-hidden="true" tabindex="-1"></a>    <span class="at">presence =</span> <span class="dv">1</span>) <span class="sc">%&gt;%</span> </span>
-<span id="cb12-54"><a href="#cb12-54" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(position <span class="sc">!=</span> <span class="st">&quot;B&quot;</span>)</span>
-<span id="cb12-55"><a href="#cb12-55" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-56"><a href="#cb12-56" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-57"><a href="#cb12-57" aria-hidden="true" tabindex="-1"></a><span class="fu">### Hour filtering</span></span>
-<span id="cb12-58"><a href="#cb12-58" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-59"><a href="#cb12-59" aria-hidden="true" tabindex="-1"></a>Correction of minute offset: Some images have a one-minute offset (minute = 01) that distorts the time selection. This bias is corrected by normalising the times.</span>
-<span id="cb12-60"><a href="#cb12-60" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-61"><a href="#cb12-61" aria-hidden="true" tabindex="-1"></a>**Only images captured at midnight and noon are selected.** These schedules are retained because they represent night and day periods respectively, regardless of seasonality.</span>
-<span id="cb12-62"><a href="#cb12-62" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-65"><a href="#cb12-65" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-66"><a href="#cb12-66" aria-hidden="true" tabindex="-1"></a>df <span class="ot">&lt;-</span> df <span class="sc">%&gt;%</span></span>
-<span id="cb12-67"><a href="#cb12-67" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">date =</span> <span class="fu">if_else</span>(<span class="fu">minute</span>(date) <span class="sc">==</span> <span class="dv">1</span>, date <span class="sc">-</span> <span class="fu">minutes</span>(<span class="dv">1</span>), date),</span>
-<span id="cb12-68"><a href="#cb12-68" aria-hidden="true" tabindex="-1"></a>    <span class="at">hour =</span> <span class="fu">hour</span>(date),</span>
-<span id="cb12-69"><a href="#cb12-69" aria-hidden="true" tabindex="-1"></a>    <span class="at">minute =</span> <span class="fu">minute</span>(date)) <span class="sc">%&gt;%</span></span>
-<span id="cb12-70"><a href="#cb12-70" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(minute <span class="sc">==</span> <span class="dv">0</span>, hour <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">12</span>)) <span class="sc">%&gt;%</span></span>
-<span id="cb12-71"><a href="#cb12-71" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>hour, <span class="sc">-</span>minute)<span class="sc">%&gt;%</span></span>
-<span id="cb12-72"><a href="#cb12-72" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">hour =</span> <span class="fu">format</span>(date, <span class="st">&quot;%H:%M&quot;</span>)) <span class="sc">%&gt;%</span></span>
-<span id="cb12-73"><a href="#cb12-73" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">day =</span> <span class="fu">as.Date</span>(date)) <span class="sc">%&gt;%</span></span>
-<span id="cb12-74"><a href="#cb12-74" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(date,scanner,position,depth,orientation,presence,day, hour) <span class="sc">%&gt;%</span></span>
-<span id="cb12-75"><a href="#cb12-75" aria-hidden="true" tabindex="-1"></a>  <span class="fu">slice</span>(<span class="dv">1</span>) <span class="sc">%&gt;%</span> </span>
-<span id="cb12-76"><a href="#cb12-76" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>()</span>
-<span id="cb12-77"><a href="#cb12-77" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-78"><a href="#cb12-78" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-79"><a href="#cb12-79" aria-hidden="true" tabindex="-1"></a><span class="fu">### Completion of the dataset</span></span>
-<span id="cb12-80"><a href="#cb12-80" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-81"><a href="#cb12-81" aria-hidden="true" tabindex="-1"></a>In order to assess the completeness of the data, a comprehensive grid of all possible combinations (day, time, position, depth, orientation) is generated. This is then cross-referenced with the observed data in order to identify any missing combinations.</span>
-<span id="cb12-82"><a href="#cb12-82" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-85"><a href="#cb12-85" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-86"><a href="#cb12-86" aria-hidden="true" tabindex="-1"></a>df_complete <span class="ot">&lt;-</span> <span class="fu">expand_grid</span>(<span class="at">day =</span> <span class="fu">unique</span>(df<span class="sc">$</span>day),</span>
-<span id="cb12-87"><a href="#cb12-87" aria-hidden="true" tabindex="-1"></a>                          <span class="at">hour =</span> <span class="fu">c</span>(<span class="st">&quot;00:00&quot;</span>, <span class="st">&quot;12:00&quot;</span>),</span>
-<span id="cb12-88"><a href="#cb12-88" aria-hidden="true" tabindex="-1"></a>                          <span class="at">position =</span> <span class="fu">unique</span>(df<span class="sc">$</span>position),</span>
-<span id="cb12-89"><a href="#cb12-89" aria-hidden="true" tabindex="-1"></a>                          <span class="at">depth =</span> <span class="fu">unique</span>(df<span class="sc">$</span>depth),</span>
-<span id="cb12-90"><a href="#cb12-90" aria-hidden="true" tabindex="-1"></a>                          <span class="at">orientation =</span> <span class="fu">unique</span>(df<span class="sc">$</span>orientation)) <span class="sc">%&gt;%</span></span>
-<span id="cb12-91"><a href="#cb12-91" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(df, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">&quot;day&quot;</span>, <span class="st">&quot;hour&quot;</span>, <span class="st">&quot;position&quot;</span>, <span class="st">&quot;depth&quot;</span>, <span class="st">&quot;orientation&quot;</span>)) <span class="sc">%&gt;%</span></span>
-<span id="cb12-92"><a href="#cb12-92" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">presence =</span> <span class="fu">replace_na</span>(presence, <span class="dv">0</span>))</span>
-<span id="cb12-93"><a href="#cb12-93" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-94"><a href="#cb12-94" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-95"><a href="#cb12-95" aria-hidden="true" tabindex="-1"></a>**Visualisation of filtered data :**</span>
-<span id="cb12-96"><a href="#cb12-96" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-99"><a href="#cb12-99" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-100"><a href="#cb12-100" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb12-101"><a href="#cb12-101" aria-hidden="true" tabindex="-1"></a>df_complete <span class="ot">&lt;-</span> df_complete <span class="sc">%&gt;%</span></span>
-<span id="cb12-102"><a href="#cb12-102" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">datetime =</span> <span class="fu">as.POSIXct</span>(<span class="fu">paste</span>(day, hour), <span class="at">format =</span> <span class="st">&quot;%Y-%m-%d %H:%M&quot;</span>),</span>
-<span id="cb12-103"><a href="#cb12-103" aria-hidden="true" tabindex="-1"></a>         <span class="at">scanner =</span> <span class="fu">paste</span>(position, depth,orientation, <span class="at">sep=</span><span class="st">&quot;_&quot;</span>))</span>
-<span id="cb12-104"><a href="#cb12-104" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-105"><a href="#cb12-105" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(df_complete, <span class="fu">aes</span>(<span class="at">x =</span> datetime, <span class="at">y =</span> scanner, <span class="at">color =</span> <span class="fu">as.factor</span>(presence))) <span class="sc">+</span></span>
-<span id="cb12-106"><a href="#cb12-106" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">2</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
-<span id="cb12-107"><a href="#cb12-107" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">&quot;0&quot;</span> <span class="ot">=</span> <span class="st">&quot;grey80&quot;</span>, <span class="st">&quot;1&quot;</span> <span class="ot">=</span> <span class="st">&quot;#F4631E&quot;</span>), <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">&quot;Absence&quot;</span>, <span class="st">&quot;Presence&quot;</span>), <span class="at">name =</span> <span class="st">&quot;Image&quot;</span>) <span class="sc">+</span></span>
-<span id="cb12-108"><a href="#cb12-108" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;Date&quot;</span>, <span class="at">y =</span> <span class="st">&quot;Scanner&quot;</span>, <span class="at">title =</span> <span class="st">&quot;Presence/absence of images by scanner and date&quot;</span>) <span class="sc">+</span></span>
-<span id="cb12-109"><a href="#cb12-109" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
-<span id="cb12-110"><a href="#cb12-110" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">axis.text.x =</span> <span class="fu">element_text</span>(<span class="at">angle =</span> <span class="dv">45</span>, <span class="at">hjust =</span> <span class="dv">1</span>))</span>
-<span id="cb12-111"><a href="#cb12-111" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-112"><a href="#cb12-112" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-113"><a href="#cb12-113" aria-hidden="true" tabindex="-1"></a><span class="fu">### Period selection</span></span>
-<span id="cb12-114"><a href="#cb12-114" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-115"><a href="#cb12-115" aria-hidden="true" tabindex="-1"></a>To guarantee the quality of the selected subset, data completeness is verified for each acquisition date and over continuous periods.</span>
-<span id="cb12-116"><a href="#cb12-116" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-117"><a href="#cb12-117" aria-hidden="true" tabindex="-1"></a>First, the **expected number of images per day** is determined.</span>
-<span id="cb12-118"><a href="#cb12-118" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-121"><a href="#cb12-121" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-122"><a href="#cb12-122" aria-hidden="true" tabindex="-1"></a>nb_img_day <span class="ot">&lt;-</span> <span class="fu">n_distinct</span>(df_complete<span class="sc">$</span>scanner) <span class="sc">*</span> <span class="dv">2</span> </span>
-<span id="cb12-123"><a href="#cb12-123" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Number of images expected per day : &quot;</span>, nb_img_day)</span>
-<span id="cb12-124"><a href="#cb12-124" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-125"><a href="#cb12-125" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-126"><a href="#cb12-126" aria-hidden="true" tabindex="-1"></a>We then identify the days on which at least **60% of these images are present**.</span>
-<span id="cb12-127"><a href="#cb12-127" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-130"><a href="#cb12-130" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-131"><a href="#cb12-131" aria-hidden="true" tabindex="-1"></a>prop <span class="ot">=</span> <span class="fl">0.65</span></span>
-<span id="cb12-132"><a href="#cb12-132" aria-hidden="true" tabindex="-1"></a>days_complete <span class="ot">&lt;-</span> df_complete <span class="sc">%&gt;%</span></span>
-<span id="cb12-133"><a href="#cb12-133" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(day) <span class="sc">%&gt;%</span></span>
-<span id="cb12-134"><a href="#cb12-134" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">n =</span> <span class="fu">sum</span>(presence), <span class="at">.groups =</span> <span class="st">&quot;drop&quot;</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb12-135"><a href="#cb12-135" aria-hidden="true" tabindex="-1"></a>   <span class="fu">mutate</span>(<span class="at">complet =</span> n <span class="sc">&gt;=</span> (nb_img_day <span class="sc">*</span> prop))</span>
-<span id="cb12-136"><a href="#cb12-136" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Number of images expected per day : &quot;</span>, <span class="fu">round</span>(nb_img_day <span class="sc">*</span> prop, <span class="dv">0</span>))</span>
-<span id="cb12-137"><a href="#cb12-137" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-138"><a href="#cb12-138" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-139"><a href="#cb12-139" aria-hidden="true" tabindex="-1"></a>We select the **groups of 7 consecutive days** that meet this criterion.</span>
-<span id="cb12-140"><a href="#cb12-140" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-143"><a href="#cb12-143" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-144"><a href="#cb12-144" aria-hidden="true" tabindex="-1"></a>duration_min_period <span class="ot">=</span> <span class="dv">7</span></span>
-<span id="cb12-145"><a href="#cb12-145" aria-hidden="true" tabindex="-1"></a><span class="co">#identification of continuous groups of full days</span></span>
-<span id="cb12-146"><a href="#cb12-146" aria-hidden="true" tabindex="-1"></a>days_complete <span class="ot">&lt;-</span> days_complete <span class="sc">%&gt;%</span></span>
-<span id="cb12-147"><a href="#cb12-147" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(day) <span class="sc">%&gt;%</span></span>
-<span id="cb12-148"><a href="#cb12-148" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">gap =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="fu">diff</span>(day)),</span>
-<span id="cb12-149"><a href="#cb12-149" aria-hidden="true" tabindex="-1"></a>    <span class="at">group =</span> <span class="fu">cumsum</span>(gap <span class="sc">!=</span> <span class="dv">1</span> <span class="sc">|</span> <span class="sc">!</span>complet)) </span>
-<span id="cb12-150"><a href="#cb12-150" aria-hidden="true" tabindex="-1"></a><span class="co">#selection of groups of more than 7 consecutive full days</span></span>
-<span id="cb12-151"><a href="#cb12-151" aria-hidden="true" tabindex="-1"></a>valid_days <span class="ot">&lt;-</span> days_complete <span class="sc">%&gt;%</span></span>
-<span id="cb12-152"><a href="#cb12-152" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(complet) <span class="sc">%&gt;%</span></span>
-<span id="cb12-153"><a href="#cb12-153" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(group) <span class="sc">%&gt;%</span></span>
-<span id="cb12-154"><a href="#cb12-154" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(n <span class="sc">&gt;=</span> duration_min_period) <span class="sc">%&gt;%</span></span>
-<span id="cb12-155"><a href="#cb12-155" aria-hidden="true" tabindex="-1"></a>  <span class="fu">inner_join</span>(days_complete, <span class="at">by =</span> <span class="st">&quot;group&quot;</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb12-156"><a href="#cb12-156" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pull</span>(day)</span>
-<span id="cb12-157"><a href="#cb12-157" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-158"><a href="#cb12-158" aria-hidden="true" tabindex="-1"></a>df_final <span class="ot">&lt;-</span> df_complete <span class="sc">%&gt;%</span></span>
-<span id="cb12-159"><a href="#cb12-159" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(day <span class="sc">%in%</span> valid_days)</span>
-<span id="cb12-160"><a href="#cb12-160" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-161"><a href="#cb12-161" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-162"><a href="#cb12-162" aria-hidden="true" tabindex="-1"></a>**Viewing filtered data:**</span>
-<span id="cb12-163"><a href="#cb12-163" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-166"><a href="#cb12-166" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-167"><a href="#cb12-167" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb12-168"><a href="#cb12-168" aria-hidden="true" tabindex="-1"></a>df_final<span class="sc">%&gt;%</span></span>
-<span id="cb12-169"><a href="#cb12-169" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(datetime<span class="sc">&gt;</span> <span class="fu">as.Date</span>(<span class="st">&#39;2024-02-01&#39;</span>) <span class="sc">&amp;</span> datetime <span class="sc">&lt;</span> <span class="fu">as.Date</span>(<span class="st">&#39;2025-07-01&#39;</span>))<span class="sc">%&gt;%</span></span>
-<span id="cb12-170"><a href="#cb12-170" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> datetime, <span class="at">y =</span> scanner, <span class="at">color =</span> <span class="fu">as.factor</span>(presence))) <span class="sc">+</span></span>
-<span id="cb12-171"><a href="#cb12-171" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">2</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
-<span id="cb12-172"><a href="#cb12-172" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(</span>
-<span id="cb12-173"><a href="#cb12-173" aria-hidden="true" tabindex="-1"></a>    <span class="at">values =</span> <span class="fu">c</span>(<span class="st">&quot;0&quot;</span> <span class="ot">=</span> <span class="st">&quot;grey80&quot;</span>, <span class="st">&quot;1&quot;</span> <span class="ot">=</span> <span class="st">&quot;#F4631E&quot;</span>),</span>
-<span id="cb12-174"><a href="#cb12-174" aria-hidden="true" tabindex="-1"></a>    <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">&quot;Absence&quot;</span>, <span class="st">&quot;Presence&quot;</span>),</span>
-<span id="cb12-175"><a href="#cb12-175" aria-hidden="true" tabindex="-1"></a>    <span class="at">name =</span> <span class="st">&quot;Image&quot;</span></span>
-<span id="cb12-176"><a href="#cb12-176" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb12-177"><a href="#cb12-177" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
-<span id="cb12-178"><a href="#cb12-178" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">&quot;Date&quot;</span>,</span>
-<span id="cb12-179"><a href="#cb12-179" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">&quot;Scanner&quot;</span>,</span>
-<span id="cb12-180"><a href="#cb12-180" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">&quot;Presence/absence of images by scanner and date&quot;</span></span>
-<span id="cb12-181"><a href="#cb12-181" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
-<span id="cb12-182"><a href="#cb12-182" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_datetime</span>(</span>
-<span id="cb12-183"><a href="#cb12-183" aria-hidden="true" tabindex="-1"></a>    <span class="at">date_breaks =</span> <span class="st">&quot;1 month&quot;</span>,</span>
-<span id="cb12-184"><a href="#cb12-184" aria-hidden="true" tabindex="-1"></a>    <span class="at">date_labels =</span> <span class="st">&quot;%b %Y&quot;</span>) <span class="sc">+</span></span>
-<span id="cb12-185"><a href="#cb12-185" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
-<span id="cb12-186"><a href="#cb12-186" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">axis.text.x =</span> <span class="fu">element_text</span>(<span class="at">angle =</span> <span class="dv">45</span>, <span class="at">hjust =</span> <span class="dv">1</span>))</span>
-<span id="cb12-187"><a href="#cb12-187" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-188"><a href="#cb12-188" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-189"><a href="#cb12-189" aria-hidden="true" tabindex="-1"></a><span class="fu">### Selection of representative weeks</span></span>
-<span id="cb12-190"><a href="#cb12-190" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-191"><a href="#cb12-191" aria-hidden="true" tabindex="-1"></a>In order to cover different **seasonal and crop phases**, several 7-day periods spread throughout the year are targeted.</span>
-<span id="cb12-192"><a href="#cb12-192" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-193"><a href="#cb12-193" aria-hidden="true" tabindex="-1"></a>Five target dates, spread throughout the year, are selected as the starting point for each 7-day period. For each date, the following 7 days are retrieved from the filtered data. Days with at least 90% of the expected images are counted. A week is considered &quot;complete&quot; if all 7 days are valid.</span>
-<span id="cb12-194"><a href="#cb12-194" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-197"><a href="#cb12-197" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-198"><a href="#cb12-198" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb12-199"><a href="#cb12-199" aria-hidden="true" tabindex="-1"></a>target_dates <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
-<span id="cb12-200"><a href="#cb12-200" aria-hidden="true" tabindex="-1"></a>  <span class="at">period =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">7</span>,</span>
-<span id="cb12-201"><a href="#cb12-201" aria-hidden="true" tabindex="-1"></a>  <span class="at">start_date =</span> <span class="fu">as.Date</span>(<span class="fu">c</span>(<span class="st">&quot;2024-03-20&quot;</span>, <span class="st">&quot;2024-05-25&quot;</span>, </span>
-<span id="cb12-202"><a href="#cb12-202" aria-hidden="true" tabindex="-1"></a>                         <span class="st">&quot;2024-07-15&quot;</span>, <span class="st">&quot;2024-09-19&quot;</span>, </span>
-<span id="cb12-203"><a href="#cb12-203" aria-hidden="true" tabindex="-1"></a>                         <span class="st">&quot;2024-12-10&quot;</span>, <span class="st">&quot;2025-02-15&quot;</span>, <span class="st">&quot;2025-04-20&quot;</span>)))</span>
-<span id="cb12-204"><a href="#cb12-204" aria-hidden="true" tabindex="-1"></a>selected_weeks <span class="ot">&lt;-</span> target_dates <span class="sc">%&gt;%</span></span>
-<span id="cb12-205"><a href="#cb12-205" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">data =</span> <span class="fu">map</span>(start_date, <span class="sc">~</span> df_final <span class="sc">%&gt;%</span></span>
-<span id="cb12-206"><a href="#cb12-206" aria-hidden="true" tabindex="-1"></a>                      <span class="fu">filter</span>(day <span class="sc">&gt;=</span> .x, day <span class="sc">&lt;=</span> .x <span class="sc">+</span> (duration_min_period<span class="dv">-1</span>)))) <span class="sc">%&gt;%</span></span>
-<span id="cb12-207"><a href="#cb12-207" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(<span class="at">cols =</span> <span class="fu">c</span>(data))</span>
-<span id="cb12-208"><a href="#cb12-208" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-209"><a href="#cb12-209" aria-hidden="true" tabindex="-1"></a>validity_weeks <span class="ot">&lt;-</span> selected_weeks <span class="sc">%&gt;%</span></span>
-<span id="cb12-210"><a href="#cb12-210" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(period, day, <span class="at">wt =</span> presence) <span class="sc">%&gt;%</span></span>
-<span id="cb12-211"><a href="#cb12-211" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(period) <span class="sc">%&gt;%</span></span>
-<span id="cb12-212"><a href="#cb12-212" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">valid_days =</span> <span class="fu">sum</span>(n <span class="sc">&gt;=</span> nb_img_day <span class="sc">*</span> prop), <span class="at">complet =</span> valid_days <span class="sc">==</span> duration_min_period, <span class="at">.groups =</span> <span class="st">&quot;drop&quot;</span>)</span>
-<span id="cb12-213"><a href="#cb12-213" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-214"><a href="#cb12-214" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(validity_weeks)</span>
-<span id="cb12-215"><a href="#cb12-215" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-216"><a href="#cb12-216" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-217"><a href="#cb12-217" aria-hidden="true" tabindex="-1"></a>Each period is associated with a crop and a season according to its dates, by cross-referencing sowing/harvesting periods and calendar definitions of seasons.</span>
-<span id="cb12-218"><a href="#cb12-218" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-221"><a href="#cb12-221" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-222"><a href="#cb12-222" aria-hidden="true" tabindex="-1"></a>crops <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
-<span id="cb12-223"><a href="#cb12-223" aria-hidden="true" tabindex="-1"></a>  <span class="at">crop =</span> <span class="fu">c</span>(<span class="st">&quot;wheat&quot;</span>, <span class="st">&quot;sorghum&quot;</span>, <span class="st">&quot;Bare soil&quot;</span>, <span class="st">&quot;Chickpea&quot;</span>),</span>
-<span id="cb12-224"><a href="#cb12-224" aria-hidden="true" tabindex="-1"></a>  <span class="at">start_date =</span> <span class="fu">as.Date</span>(<span class="fu">c</span>(<span class="st">&quot;2023-12-14&quot;</span>, <span class="st">&quot;2024-07-09&quot;</span>, <span class="st">&quot;2024-11-23&quot;</span>, <span class="st">&quot;2025-03-17&quot;</span>)),</span>
-<span id="cb12-225"><a href="#cb12-225" aria-hidden="true" tabindex="-1"></a>  <span class="at">final_date   =</span> <span class="fu">as.Date</span>(<span class="fu">c</span>(<span class="st">&quot;2024-07-08&quot;</span>, <span class="st">&quot;2024-11-22&quot;</span>, <span class="st">&quot;2025-03-16&quot;</span>, <span class="st">&quot;2025-07-15&quot;</span>))</span>
-<span id="cb12-226"><a href="#cb12-226" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-227"><a href="#cb12-227" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-228"><a href="#cb12-228" aria-hidden="true" tabindex="-1"></a>years <span class="ot">&lt;-</span> <span class="dv">2023</span><span class="sc">:</span><span class="dv">2025</span></span>
-<span id="cb12-229"><a href="#cb12-229" aria-hidden="true" tabindex="-1"></a>season <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;spring&quot;</span>, <span class="st">&quot;summer&quot;</span>, <span class="st">&quot;autumn&quot;</span>, <span class="st">&quot;winter&quot;</span>)</span>
-<span id="cb12-230"><a href="#cb12-230" aria-hidden="true" tabindex="-1"></a>seasons <span class="ot">&lt;-</span> <span class="fu">bind_rows</span>(<span class="fu">lapply</span>(years, <span class="cf">function</span>(an) {</span>
-<span id="cb12-231"><a href="#cb12-231" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tibble</span>(</span>
-<span id="cb12-232"><a href="#cb12-232" aria-hidden="true" tabindex="-1"></a>    <span class="at">season =</span> season,</span>
-<span id="cb12-233"><a href="#cb12-233" aria-hidden="true" tabindex="-1"></a>    <span class="at">start_date =</span> <span class="fu">as.Date</span>(<span class="fu">paste0</span>(an, <span class="fu">c</span>(<span class="st">&quot;-03-21&quot;</span>, <span class="st">&quot;-06-21&quot;</span>, <span class="st">&quot;-09-21&quot;</span>, <span class="st">&quot;-12-21&quot;</span>))),</span>
-<span id="cb12-234"><a href="#cb12-234" aria-hidden="true" tabindex="-1"></a>    <span class="at">final_date =</span> <span class="fu">as.Date</span>(<span class="fu">paste0</span>(<span class="fu">c</span>(an, an, an, an <span class="sc">+</span> <span class="dv">1</span>), <span class="fu">c</span>(<span class="st">&quot;-06-20&quot;</span>, <span class="st">&quot;-09-20&quot;</span>, <span class="st">&quot;-12-20&quot;</span>, <span class="st">&quot;-03-20&quot;</span>))))</span>
-<span id="cb12-235"><a href="#cb12-235" aria-hidden="true" tabindex="-1"></a>}))</span>
-<span id="cb12-236"><a href="#cb12-236" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-237"><a href="#cb12-237" aria-hidden="true" tabindex="-1"></a>df_final <span class="ot">&lt;-</span> selected_weeks <span class="sc">%&gt;%</span></span>
-<span id="cb12-238"><a href="#cb12-238" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(crops <span class="sc">%&gt;%</span> <span class="fu">rowwise</span>() <span class="sc">%&gt;%</span> <span class="fu">mutate</span>(<span class="at">day =</span> <span class="fu">list</span>(<span class="fu">seq</span>(start_date, final_date, <span class="at">by =</span> <span class="st">&quot;day&quot;</span>))) <span class="sc">%&gt;%</span> <span class="fu">unnest</span>(<span class="at">cols =</span> <span class="fu">c</span>(day)) <span class="sc">%&gt;%</span> <span class="fu">select</span>(day, crop),</span>
-<span id="cb12-239"><a href="#cb12-239" aria-hidden="true" tabindex="-1"></a>            <span class="at">by =</span> <span class="st">&quot;day&quot;</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb12-240"><a href="#cb12-240" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(seasons <span class="sc">%&gt;%</span> <span class="fu">rowwise</span>() <span class="sc">%&gt;%</span> <span class="fu">mutate</span>(<span class="at">day =</span> <span class="fu">list</span>(<span class="fu">seq</span>(start_date, final_date, <span class="at">by =</span> <span class="st">&quot;day&quot;</span>))) <span class="sc">%&gt;%</span> <span class="fu">unnest</span>(<span class="at">cols =</span> <span class="fu">c</span>(day)) <span class="sc">%&gt;%</span> <span class="fu">select</span>(day, season),</span>
-<span id="cb12-241"><a href="#cb12-241" aria-hidden="true" tabindex="-1"></a>            <span class="at">by =</span> <span class="st">&quot;day&quot;</span>)</span>
-<span id="cb12-242"><a href="#cb12-242" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-243"><a href="#cb12-243" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-244"><a href="#cb12-244" aria-hidden="true" tabindex="-1"></a>**Summary of selected periods:**</span>
-<span id="cb12-245"><a href="#cb12-245" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-248"><a href="#cb12-248" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-249"><a href="#cb12-249" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb12-250"><a href="#cb12-250" aria-hidden="true" tabindex="-1"></a>synthesis_table <span class="ot">&lt;-</span> df_final <span class="sc">%&gt;%</span></span>
-<span id="cb12-251"><a href="#cb12-251" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(period) <span class="sc">%&gt;%</span></span>
-<span id="cb12-252"><a href="#cb12-252" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
-<span id="cb12-253"><a href="#cb12-253" aria-hidden="true" tabindex="-1"></a>    <span class="at">start_date =</span> <span class="fu">min</span>(day),</span>
-<span id="cb12-254"><a href="#cb12-254" aria-hidden="true" tabindex="-1"></a>    <span class="at">final_date =</span> <span class="fu">max</span>(day),</span>
-<span id="cb12-255"><a href="#cb12-255" aria-hidden="true" tabindex="-1"></a>    <span class="at">nb_images =</span> <span class="fu">sum</span>(presence),</span>
-<span id="cb12-256"><a href="#cb12-256" aria-hidden="true" tabindex="-1"></a>    <span class="at">crops =</span> <span class="fu">paste</span>(<span class="fu">unique</span>(<span class="fu">na.omit</span>(crop)), <span class="at">collapse =</span> <span class="st">&quot;, &quot;</span>),</span>
-<span id="cb12-257"><a href="#cb12-257" aria-hidden="true" tabindex="-1"></a>    <span class="at">seasons =</span> <span class="fu">paste</span>(<span class="fu">unique</span>(<span class="fu">na.omit</span>(season)), <span class="at">collapse =</span> <span class="st">&quot;, &quot;</span>),</span>
-<span id="cb12-258"><a href="#cb12-258" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">&quot;drop&quot;</span> )</span>
-<span id="cb12-259"><a href="#cb12-259" aria-hidden="true" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(synthesis_table, <span class="at">caption =</span> <span class="st">&quot;Summary of selected periods&quot;</span>)</span>
-<span id="cb12-260"><a href="#cb12-260" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-261"><a href="#cb12-261" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-262"><a href="#cb12-262" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-263"><a href="#cb12-263" aria-hidden="true" tabindex="-1"></a>**Final display of selected periods**</span>
-<span id="cb12-264"><a href="#cb12-264" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-267"><a href="#cb12-267" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-268"><a href="#cb12-268" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb12-269"><a href="#cb12-269" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(df_final, <span class="fu">aes</span>(<span class="at">x =</span> datetime, <span class="at">y =</span> scanner, <span class="at">color =</span> <span class="fu">as.factor</span>(presence))) <span class="sc">+</span></span>
-<span id="cb12-270"><a href="#cb12-270" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">2</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
-<span id="cb12-271"><a href="#cb12-271" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">&quot;0&quot;</span> <span class="ot">=</span> <span class="st">&quot;grey80&quot;</span>, <span class="st">&quot;1&quot;</span> <span class="ot">=</span> <span class="st">&quot;#F4631E&quot;</span>), <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">&quot;Absence&quot;</span>, <span class="st">&quot;Presence&quot;</span>), <span class="at">name =</span> <span class="st">&quot;Image&quot;</span>) <span class="sc">+</span></span>
-<span id="cb12-272"><a href="#cb12-272" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;Date&quot;</span>, <span class="at">y =</span> <span class="st">&quot;Scanner&quot;</span>, <span class="at">title =</span> <span class="st">&quot;Presence/absence of images by scanner and date&quot;</span>) <span class="sc">+</span></span>
-<span id="cb12-273"><a href="#cb12-273" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_datetime</span>(<span class="at">date_breaks =</span> <span class="st">&quot;1 month&quot;</span>, <span class="at">date_labels =</span> <span class="st">&quot;%b %Y&quot;</span>) <span class="sc">+</span></span>
-<span id="cb12-274"><a href="#cb12-274" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
-<span id="cb12-275"><a href="#cb12-275" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">axis.text.x =</span> <span class="fu">element_text</span>(<span class="at">angle =</span> <span class="dv">45</span>, <span class="at">hjust =</span> <span class="dv">1</span>))</span>
-<span id="cb12-276"><a href="#cb12-276" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-277"><a href="#cb12-277" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-278"><a href="#cb12-278" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-279"><a href="#cb12-279" aria-hidden="true" tabindex="-1"></a><span class="fu">### Selection of previous images for differentiation</span></span>
-<span id="cb12-280"><a href="#cb12-280" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-281"><a href="#cb12-281" aria-hidden="true" tabindex="-1"></a>Creation of a copy of the image set with dates shifted by 9 days and selection of corresponding images</span>
-<span id="cb12-282"><a href="#cb12-282" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-285"><a href="#cb12-285" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-286"><a href="#cb12-286" aria-hidden="true" tabindex="-1"></a><span class="co"># We shift the time window back by 9 days to find the &#39;starting point&#39; for each observation.</span></span>
-<span id="cb12-287"><a href="#cb12-287" aria-hidden="true" tabindex="-1"></a>df_reference <span class="ot">&lt;-</span> df_final <span class="sc">%&gt;%</span></span>
-<span id="cb12-288"><a href="#cb12-288" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(presence<span class="sc">==</span><span class="dv">1</span>)<span class="sc">%&gt;%</span></span>
-<span id="cb12-289"><a href="#cb12-289" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">date =</span> date <span class="sc">-</span> <span class="fu">days</span>(<span class="dv">9</span>)) <span class="sc">%&gt;%</span></span>
-<span id="cb12-290"><a href="#cb12-290" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(depth, position, orientation, date) <span class="sc">%&gt;%</span></span>
-<span id="cb12-291"><a href="#cb12-291" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(df <span class="sc">%&gt;%</span> </span>
-<span id="cb12-292"><a href="#cb12-292" aria-hidden="true" tabindex="-1"></a>      <span class="fu">select</span>(depth, position, orientation, date, image_name), <span class="at">by =</span> <span class="fu">c</span>(<span class="st">&quot;depth&quot;</span>, <span class="st">&quot;position&quot;</span>, <span class="st">&quot;orientation&quot;</span>, <span class="st">&quot;date&quot;</span>))<span class="sc">%&gt;%</span></span>
-<span id="cb12-293"><a href="#cb12-293" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">presence =</span> <span class="fu">if_else</span>(<span class="fu">is.na</span>(image_name), <span class="dv">0</span>, <span class="dv">1</span>),</span>
-<span id="cb12-294"><a href="#cb12-294" aria-hidden="true" tabindex="-1"></a>         <span class="at">day_ref =</span> <span class="fu">as.Date</span>(date),</span>
-<span id="cb12-295"><a href="#cb12-295" aria-hidden="true" tabindex="-1"></a>         <span class="at">hour_ref =</span> <span class="fu">format</span>(date, <span class="st">&quot;%H:%M&quot;</span>))</span>
-<span id="cb12-296"><a href="#cb12-296" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-297"><a href="#cb12-297" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-300"><a href="#cb12-300" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-301"><a href="#cb12-301" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb12-302"><a href="#cb12-302" aria-hidden="true" tabindex="-1"></a>df_reference <span class="sc">%&gt;%</span> </span>
-<span id="cb12-303"><a href="#cb12-303" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">scanner =</span> <span class="fu">paste</span>(position, depth, <span class="at">sep=</span><span class="st">&quot;_&quot;</span>))<span class="sc">%&gt;%</span></span>
-<span id="cb12-304"><a href="#cb12-304" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> date, <span class="at">y =</span> scanner, <span class="at">color =</span> <span class="fu">as.factor</span>(presence))) <span class="sc">+</span></span>
-<span id="cb12-305"><a href="#cb12-305" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">2</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
-<span id="cb12-306"><a href="#cb12-306" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">&quot;0&quot;</span> <span class="ot">=</span> <span class="st">&quot;grey80&quot;</span>, <span class="st">&quot;1&quot;</span> <span class="ot">=</span> <span class="st">&quot;darkgreen&quot;</span>), <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">&quot;Absence&quot;</span>, <span class="st">&quot;Presence&quot;</span>), <span class="at">name =</span> <span class="st">&quot;Image&quot;</span>) <span class="sc">+</span></span>
-<span id="cb12-307"><a href="#cb12-307" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;Date&quot;</span>, <span class="at">y =</span> <span class="st">&quot;Scanner&quot;</span>, <span class="at">title =</span> <span class="st">&quot;Presence/absence of images by scanner and date&quot;</span>) <span class="sc">+</span></span>
-<span id="cb12-308"><a href="#cb12-308" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_datetime</span>(<span class="at">date_breaks =</span> <span class="st">&quot;1 month&quot;</span>, <span class="at">date_labels =</span> <span class="st">&quot;%b %Y&quot;</span>) <span class="sc">+</span></span>
-<span id="cb12-309"><a href="#cb12-309" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
-<span id="cb12-310"><a href="#cb12-310" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">axis.text.x =</span> <span class="fu">element_text</span>(<span class="at">angle =</span> <span class="dv">45</span>, <span class="at">hjust =</span> <span class="dv">1</span>))</span>
-<span id="cb12-311"><a href="#cb12-311" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-312"><a href="#cb12-312" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-313"><a href="#cb12-313" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-314"><a href="#cb12-314" aria-hidden="true" tabindex="-1"></a>Filtering images from the current dataset based on missing images from the previous dataset :</span>
-<span id="cb12-315"><a href="#cb12-315" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-318"><a href="#cb12-318" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-319"><a href="#cb12-319" aria-hidden="true" tabindex="-1"></a><span class="co"># We only keep &#39;Current&#39; images (T0) that have a valid &#39;Reference&#39; image (T-9).</span></span>
-<span id="cb12-320"><a href="#cb12-320" aria-hidden="true" tabindex="-1"></a><span class="co"># This ensures the differential analysis (e.g., growth measurement) is possible.</span></span>
-<span id="cb12-321"><a href="#cb12-321" aria-hidden="true" tabindex="-1"></a>df_final_filtered <span class="ot">&lt;-</span> df_final <span class="sc">%&gt;%</span></span>
-<span id="cb12-322"><a href="#cb12-322" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(presence <span class="sc">==</span> <span class="dv">1</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb12-323"><a href="#cb12-323" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">day_ref =</span> <span class="fu">as.Date</span>(date <span class="sc">-</span> <span class="fu">days</span>(<span class="dv">9</span>)),</span>
-<span id="cb12-324"><a href="#cb12-324" aria-hidden="true" tabindex="-1"></a>         <span class="at">hour_ref =</span> <span class="fu">format</span>(date <span class="sc">-</span> <span class="fu">days</span>(<span class="dv">9</span>), <span class="st">&quot;%H:%M&quot;</span>)) <span class="sc">%&gt;%</span></span>
-<span id="cb12-325"><a href="#cb12-325" aria-hidden="true" tabindex="-1"></a>  <span class="fu">inner_join</span>(df_reference <span class="sc">%&gt;%</span></span>
-<span id="cb12-326"><a href="#cb12-326" aria-hidden="true" tabindex="-1"></a>              <span class="fu">filter</span>(presence <span class="sc">==</span> <span class="dv">1</span>) <span class="sc">%&gt;%</span></span>
-<span id="cb12-327"><a href="#cb12-327" aria-hidden="true" tabindex="-1"></a>              <span class="fu">select</span>(depth, position, orientation, day_ref, hour_ref),</span>
-<span id="cb12-328"><a href="#cb12-328" aria-hidden="true" tabindex="-1"></a>            <span class="at">by =</span> <span class="fu">c</span>(<span class="st">&quot;depth&quot;</span>, <span class="st">&quot;position&quot;</span>, <span class="st">&quot;orientation&quot;</span>, <span class="st">&quot;day_ref&quot;</span>, <span class="st">&quot;hour_ref&quot;</span>))<span class="sc">%&gt;%</span></span>
-<span id="cb12-329"><a href="#cb12-329" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">id_image =</span> <span class="st">&quot;current&quot;</span>)<span class="sc">%&gt;%</span></span>
-<span id="cb12-330"><a href="#cb12-330" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(scanner, date, id_image, image_name)</span>
-<span id="cb12-331"><a href="#cb12-331" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-332"><a href="#cb12-332" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-333"><a href="#cb12-333" aria-hidden="true" tabindex="-1"></a>Total list of images to be processed :</span>
-<span id="cb12-334"><a href="#cb12-334" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-337"><a href="#cb12-337" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-338"><a href="#cb12-338" aria-hidden="true" tabindex="-1"></a><span class="co"># We combine the filtered &#39;Current&#39; images and their &#39;Reference&#39; images </span></span>
-<span id="cb12-339"><a href="#cb12-339" aria-hidden="true" tabindex="-1"></a><span class="co"># into a single vertical list for processing.</span></span>
-<span id="cb12-340"><a href="#cb12-340" aria-hidden="true" tabindex="-1"></a>df_combined <span class="ot">&lt;-</span> df_reference <span class="sc">%&gt;%</span></span>
-<span id="cb12-341"><a href="#cb12-341" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">scanner =</span> <span class="fu">paste</span>(position, depth, orientation, <span class="at">sep=</span><span class="st">&quot;_&quot;</span>))<span class="sc">%&gt;%</span></span>
-<span id="cb12-342"><a href="#cb12-342" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(presence <span class="sc">==</span> <span class="dv">1</span>)<span class="sc">%&gt;%</span></span>
-<span id="cb12-343"><a href="#cb12-343" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">id_image =</span> <span class="st">&quot;reference&quot;</span>)<span class="sc">%&gt;%</span></span>
-<span id="cb12-344"><a href="#cb12-344" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(scanner, date, id_image, image_name)<span class="sc">%&gt;%</span></span>
-<span id="cb12-345"><a href="#cb12-345" aria-hidden="true" tabindex="-1"></a>  <span class="fu">bind_rows</span>(., df_final_filtered)</span>
-<span id="cb12-346"><a href="#cb12-346" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-347"><a href="#cb12-347" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-350"><a href="#cb12-350" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-351"><a href="#cb12-351" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
-<span id="cb12-352"><a href="#cb12-352" aria-hidden="true" tabindex="-1"></a>df_combined <span class="sc">%&gt;%</span></span>
-<span id="cb12-353"><a href="#cb12-353" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> date, <span class="at">y =</span> scanner, <span class="at">color =</span> <span class="fu">as.factor</span>(id_image))) <span class="sc">+</span></span>
-<span id="cb12-354"><a href="#cb12-354" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">2</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
-<span id="cb12-355"><a href="#cb12-355" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">&quot;reference&quot;</span> <span class="ot">=</span> <span class="st">&quot;darkgreen&quot;</span>, <span class="st">&quot;current&quot;</span> <span class="ot">=</span> <span class="st">&quot;#F4631E&quot;</span>), <span class="at">name =</span> <span class="st">&quot;Image&quot;</span>) <span class="sc">+</span></span>
-<span id="cb12-356"><a href="#cb12-356" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;Date&quot;</span>, <span class="at">y =</span> <span class="st">&quot;Scanner&quot;</span>, <span class="at">title =</span> <span class="st">&quot;Presence/absence of images by scanner and date&quot;</span>) <span class="sc">+</span></span>
-<span id="cb12-357"><a href="#cb12-357" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_datetime</span>(<span class="at">date_breaks =</span> <span class="st">&quot;1 month&quot;</span>, <span class="at">date_labels =</span> <span class="st">&quot;%b %Y&quot;</span>) <span class="sc">+</span></span>
-<span id="cb12-358"><a href="#cb12-358" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
-<span id="cb12-359"><a href="#cb12-359" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">axis.text.x =</span> <span class="fu">element_text</span>(<span class="at">angle =</span> <span class="dv">45</span>, <span class="at">hjust =</span> <span class="dv">1</span>))</span>
-<span id="cb12-360"><a href="#cb12-360" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-361"><a href="#cb12-361" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-364"><a href="#cb12-364" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-365"><a href="#cb12-365" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;--- FINAL COMPLETENESS REPORT ---</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb12-366"><a href="#cb12-366" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Initial target images (T0):      &quot;</span>, <span class="fu">nrow</span>(df_final), <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb12-367"><a href="#cb12-367" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Analyzable pairs (T0 + T-9):     &quot;</span>, <span class="fu">nrow</span>(df_final_filtered), <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb12-368"><a href="#cb12-368" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Number of missing images :&quot;</span>, <span class="fu">nrow</span>(df_final)<span class="sc">-</span><span class="fu">nrow</span>(df_final_filtered))</span>
-<span id="cb12-369"><a href="#cb12-369" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Missing frame rate :&quot;</span>, <span class="fu">round</span>((<span class="dv">1</span><span class="sc">-</span>(<span class="fu">nrow</span>(df_final_filtered)<span class="sc">/</span><span class="fu">nrow</span>(df_final)))<span class="sc">*</span><span class="dv">100</span>, <span class="dv">2</span>), <span class="st">&quot;%&quot;</span>)</span>
-<span id="cb12-370"><a href="#cb12-370" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-371"><a href="#cb12-371" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-372"><a href="#cb12-372" aria-hidden="true" tabindex="-1"></a>|  |  |  |</span>
-<span id="cb12-373"><a href="#cb12-373" aria-hidden="true" tabindex="-1"></a>|--------------------|--------------------------|--------------------------|</span>
-<span id="cb12-374"><a href="#cb12-374" aria-hidden="true" tabindex="-1"></a>| **Dataset Name** | **Description** | **Role in the pipeline** |</span>
-<span id="cb12-375"><a href="#cb12-375" aria-hidden="true" tabindex="-1"></a>| **`df_complete`** | Theoretical grid vs. Observed data. | Used to calculate the initial missing data rate and identify stable periods. |</span>
-<span id="cb12-376"><a href="#cb12-376" aria-hidden="true" tabindex="-1"></a>| **`df_final`** | Targeted images based on seasonal periods. | Represents the &quot;intended&quot; scope of the study. |</span>
-<span id="cb12-377"><a href="#cb12-377" aria-hidden="true" tabindex="-1"></a>| **`df_reference`** | Set of images shifted by -9 days. | Acts as the baseline (J-9) for every observation. |</span>
-<span id="cb12-378"><a href="#cb12-378" aria-hidden="true" tabindex="-1"></a>| **`df_final_filtered`** | Images from <span class="in">`df_final`</span> that passed the J-9 check. | These are the &quot;Current&quot; images that are actually treatable. |</span>
-<span id="cb12-379"><a href="#cb12-379" aria-hidden="true" tabindex="-1"></a>| **`df_combined`** | Union of <span class="in">`df_final_filtered`</span> and their valid references. | The final list of all unique image names required from the server. |</span>
-<span id="cb12-380"><a href="#cb12-380" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-381"><a href="#cb12-381" aria-hidden="true" tabindex="-1"></a>: Dataset Characterization</span>
-<span id="cb12-382"><a href="#cb12-382" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-383"><a href="#cb12-383" aria-hidden="true" tabindex="-1"></a><span class="fu">### Creation of the image bank</span></span>
-<span id="cb12-384"><a href="#cb12-384" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-387"><a href="#cb12-387" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-388"><a href="#cb12-388" aria-hidden="true" tabindex="-1"></a>images_bank <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="fu">unique</span>(df_combined<span class="sc">$</span>image_name), <span class="st">&quot;.png&quot;</span>)</span>
-<span id="cb12-389"><a href="#cb12-389" aria-hidden="true" tabindex="-1"></a><span class="fu">writeLines</span>(images_bank, <span class="st">&quot;../output/image_bank.txt&quot;</span>)</span>
-<span id="cb12-390"><a href="#cb12-390" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
-<span id="cb12-391"><a href="#cb12-391" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-392"><a href="#cb12-392" aria-hidden="true" tabindex="-1"></a><span class="fu">### Generalized Diagnostic Function</span></span>
-<span id="cb12-393"><a href="#cb12-393" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-396"><a href="#cb12-396" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb12-397"><a href="#cb12-397" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; Check Data Consistency</span></span>
-<span id="cb12-398"><a href="#cb12-398" aria-hidden="true" tabindex="-1"></a>check_integrity <span class="ot">&lt;-</span> <span class="cf">function</span>(expected_df, target, <span class="at">mode =</span> <span class="st">&quot;folder&quot;</span>, <span class="at">file_ext =</span> <span class="st">&quot;.png&quot;</span>, <span class="at">clean_regex =</span> <span class="cn">NULL</span>) {</span>
-<span id="cb12-399"><a href="#cb12-399" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb12-400"><a href="#cb12-400" aria-hidden="true" tabindex="-1"></a>  <span class="co"># 1. Get the list of IDs we EXPECT</span></span>
-<span id="cb12-401"><a href="#cb12-401" aria-hidden="true" tabindex="-1"></a>  expected_ids <span class="ot">&lt;-</span> <span class="fu">unique</span>(expected_df<span class="sc">$</span>image_name)</span>
-<span id="cb12-402"><a href="#cb12-402" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb12-403"><a href="#cb12-403" aria-hidden="true" tabindex="-1"></a>  <span class="co"># 2. Get the list of IDs we ACTUALLY HAVE</span></span>
-<span id="cb12-404"><a href="#cb12-404" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (mode <span class="sc">==</span> <span class="st">&quot;folder&quot;</span>) {</span>
-<span id="cb12-405"><a href="#cb12-405" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">dir.exists</span>(target)) <span class="fu">stop</span>(<span class="st">&quot;Directory not found: &quot;</span>, target)</span>
-<span id="cb12-406"><a href="#cb12-406" aria-hidden="true" tabindex="-1"></a>    actual_files <span class="ot">&lt;-</span> <span class="fu">list.files</span>(target, <span class="at">pattern =</span> <span class="fu">paste0</span>(file_ext, <span class="st">&quot;$&quot;</span>))</span>
-<span id="cb12-407"><a href="#cb12-407" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Remove extension to get the ID</span></span>
-<span id="cb12-408"><a href="#cb12-408" aria-hidden="true" tabindex="-1"></a>    actual_ids <span class="ot">&lt;-</span> <span class="fu">gsub</span>(<span class="fu">paste0</span>(file_ext, <span class="st">&quot;$&quot;</span>), <span class="st">&quot;&quot;</span>, actual_files)</span>
-<span id="cb12-409"><a href="#cb12-409" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Apply cleaning regex if provided (e.g., to remove _distance_root_growth)</span></span>
-<span id="cb12-410"><a href="#cb12-410" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.null</span>(clean_regex)) {</span>
-<span id="cb12-411"><a href="#cb12-411" aria-hidden="true" tabindex="-1"></a>      actual_ids <span class="ot">&lt;-</span> <span class="fu">unique</span>(<span class="fu">gsub</span>(clean_regex, <span class="st">&quot;&quot;</span>, actual_ids))</span>
-<span id="cb12-412"><a href="#cb12-412" aria-hidden="true" tabindex="-1"></a>    }</span>
-<span id="cb12-413"><a href="#cb12-413" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> <span class="cf">if</span> (mode <span class="sc">==</span> <span class="st">&quot;csv&quot;</span>) {</span>
-<span id="cb12-414"><a href="#cb12-414" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">file.exists</span>(target)) <span class="fu">stop</span>(<span class="st">&quot;CSV file not found: &quot;</span>, target)</span>
-<span id="cb12-415"><a href="#cb12-415" aria-hidden="true" tabindex="-1"></a>    actual_data <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(target)</span>
-<span id="cb12-416"><a href="#cb12-416" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="st">&quot;image_name&quot;</span> <span class="sc">%in%</span> <span class="fu">colnames</span>(actual_data)) <span class="fu">stop</span>(<span class="st">&quot;CSV must contain &#39;image_name&#39; column&quot;</span>)</span>
-<span id="cb12-417"><a href="#cb12-417" aria-hidden="true" tabindex="-1"></a>    actual_ids <span class="ot">&lt;-</span> <span class="fu">unique</span>(actual_data<span class="sc">$</span>image_name)</span>
-<span id="cb12-418"><a href="#cb12-418" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb12-419"><a href="#cb12-419" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-420"><a href="#cb12-420" aria-hidden="true" tabindex="-1"></a>  <span class="co"># 3. Comparison Logic</span></span>
-<span id="cb12-421"><a href="#cb12-421" aria-hidden="true" tabindex="-1"></a>  missing_ids <span class="ot">&lt;-</span> <span class="fu">setdiff</span>(expected_ids, actual_ids)</span>
-<span id="cb12-422"><a href="#cb12-422" aria-hidden="true" tabindex="-1"></a>  extra_ids   <span class="ot">&lt;-</span> <span class="fu">setdiff</span>(actual_ids, expected_ids)</span>
-<span id="cb12-423"><a href="#cb12-423" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb12-424"><a href="#cb12-424" aria-hidden="true" tabindex="-1"></a>  <span class="co"># 4. Reporting</span></span>
-<span id="cb12-425"><a href="#cb12-425" aria-hidden="true" tabindex="-1"></a>  n_exp <span class="ot">&lt;-</span> <span class="fu">length</span>(expected_ids)</span>
-<span id="cb12-426"><a href="#cb12-426" aria-hidden="true" tabindex="-1"></a>  n_act <span class="ot">&lt;-</span> <span class="fu">length</span>(actual_ids)</span>
-<span id="cb12-427"><a href="#cb12-427" aria-hidden="true" tabindex="-1"></a>  coverage <span class="ot">&lt;-</span> <span class="fu">round</span>((n_act <span class="sc">/</span> n_exp) <span class="sc">*</span> <span class="dv">100</span>, <span class="dv">2</span>)</span>
-<span id="cb12-428"><a href="#cb12-428" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb12-429"><a href="#cb12-429" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;</span><span class="sc">\n</span><span class="st">==========================================</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb12-430"><a href="#cb12-430" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;  INTEGRITY REPORT: &quot;</span>, <span class="fu">basename</span>(target), <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb12-431"><a href="#cb12-431" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;==========================================</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb12-432"><a href="#cb12-432" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;Expected Unique IDs: &quot;</span>, n_exp, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb12-433"><a href="#cb12-433" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;Actual Unique Found: &quot;</span>, n_act, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb12-434"><a href="#cb12-434" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;Coverage Rate:       &quot;</span>, coverage, <span class="st">&quot;%</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb12-435"><a href="#cb12-435" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb12-436"><a href="#cb12-436" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">length</span>(missing_ids) <span class="sc">&gt;</span> <span class="dv">0</span>) {</span>
-<span id="cb12-437"><a href="#cb12-437" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;</span><span class="sc">\n</span><span class="st">MISSING DATA (&quot;</span>, <span class="fu">length</span>(missing_ids), <span class="st">&quot; items):</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb12-438"><a href="#cb12-438" aria-hidden="true" tabindex="-1"></a>    <span class="fu">print</span>(<span class="fu">head</span>(<span class="fu">sort</span>(missing_ids), <span class="dv">10</span>))</span>
-<span id="cb12-439"><a href="#cb12-439" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
-<span id="cb12-440"><a href="#cb12-440" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;</span><span class="sc">\n</span><span class="st">SUCCESS: No missing data.</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb12-441"><a href="#cb12-441" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb12-442"><a href="#cb12-442" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb12-443"><a href="#cb12-443" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">length</span>(extra_ids) <span class="sc">&gt;</span> <span class="dv">0</span>) {</span>
-<span id="cb12-444"><a href="#cb12-444" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;</span><span class="sc">\n</span><span class="st">EXTRA DATA (&quot;</span>, <span class="fu">length</span>(extra_ids), <span class="st">&quot; items found but not expected)</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
-<span id="cb12-445"><a href="#cb12-445" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;Named (&quot;</span>, <span class="fu">sort</span>(extra_ids))</span>
-<span id="cb12-446"><a href="#cb12-446" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb12-447"><a href="#cb12-447" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb12-448"><a href="#cb12-448" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(<span class="fu">invisible</span>(missing_ids)) <span class="co"># Returns the list silently for further use</span></span>
-<span id="cb12-449"><a href="#cb12-449" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb12-450"><a href="#cb12-450" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-451"><a href="#cb12-451" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @param expected_df The reference dataframe (e.g., df_combined or df_final_filtered)</span></span>
-<span id="cb12-452"><a href="#cb12-452" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @param target Path to a directory OR path to a CSV file</span></span>
-<span id="cb12-453"><a href="#cb12-453" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @param mode Either &quot;folder&quot; or &quot;csv&quot;</span></span>
-<span id="cb12-454"><a href="#cb12-454" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @param file_ext If mode=&quot;folder&quot;, the extension to look for (default &quot;.png&quot;)</span></span>
-<span id="cb12-455"><a href="#cb12-455" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @param clean_regex A regex pattern to remove suffixes from filenames (optional)</span></span>
-<span id="cb12-456"><a href="#cb12-456" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Checking the raw images folder</span></span>
-<span id="cb12-457"><a href="#cb12-457" aria-hidden="true" tabindex="-1"></a><span class="fu">check_integrity</span>(</span>
-<span id="cb12-458"><a href="#cb12-458" aria-hidden="true" tabindex="-1"></a>  <span class="at">expected_df =</span> df_combined, </span>
-<span id="cb12-459"><a href="#cb12-459" aria-hidden="true" tabindex="-1"></a>  <span class="at">target =</span> <span class="st">&quot;/media/ebelaud/INTENSO/rhizosphere_image_bank/&quot;</span>, </span>
-<span id="cb12-460"><a href="#cb12-460" aria-hidden="true" tabindex="-1"></a>  <span class="at">mode =</span> <span class="st">&quot;folder&quot;</span>, </span>
-<span id="cb12-461"><a href="#cb12-461" aria-hidden="true" tabindex="-1"></a>  <span class="at">file_ext =</span> <span class="st">&quot;.png&quot;</span></span>
-<span id="cb12-462"><a href="#cb12-462" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-463"><a href="#cb12-463" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-464"><a href="#cb12-464" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Checking the output raster folder (tif)</span></span>
-<span id="cb12-465"><a href="#cb12-465" aria-hidden="true" tabindex="-1"></a>raster_suffixes <span class="ot">&lt;-</span> <span class="st">&quot;(_distance_root_growth|_distance_root_mature|_root_growth|_root_mature)&quot;</span></span>
-<span id="cb12-466"><a href="#cb12-466" aria-hidden="true" tabindex="-1"></a><span class="fu">check_integrity</span>(</span>
-<span id="cb12-467"><a href="#cb12-467" aria-hidden="true" tabindex="-1"></a>  <span class="at">expected_df =</span> df_final_filtered, </span>
-<span id="cb12-468"><a href="#cb12-468" aria-hidden="true" tabindex="-1"></a>  <span class="at">target =</span> <span class="st">&quot;/media/ebelaud/INTENSO/output_raster&quot;</span>, </span>
-<span id="cb12-469"><a href="#cb12-469" aria-hidden="true" tabindex="-1"></a>  <span class="at">mode =</span> <span class="st">&quot;folder&quot;</span>, </span>
-<span id="cb12-470"><a href="#cb12-470" aria-hidden="true" tabindex="-1"></a>  <span class="at">file_ext =</span> <span class="st">&quot;.tif&quot;</span>,</span>
-<span id="cb12-471"><a href="#cb12-471" aria-hidden="true" tabindex="-1"></a>  <span class="at">clean_regex =</span> raster_suffixes</span>
-<span id="cb12-472"><a href="#cb12-472" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-473"><a href="#cb12-473" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb12-474"><a href="#cb12-474" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Checking the final data results</span></span>
-<span id="cb12-475"><a href="#cb12-475" aria-hidden="true" tabindex="-1"></a><span class="fu">check_integrity</span>(</span>
-<span id="cb12-476"><a href="#cb12-476" aria-hidden="true" tabindex="-1"></a>  <span class="at">expected_df =</span> df_final_filtered, </span>
-<span id="cb12-477"><a href="#cb12-477" aria-hidden="true" tabindex="-1"></a>  <span class="at">target =</span> <span class="st">&quot;../output/distance_data_cleaned.csv&quot;</span>, </span>
-<span id="cb12-478"><a href="#cb12-478" aria-hidden="true" tabindex="-1"></a>  <span class="at">mode =</span> <span class="st">&quot;csv&quot;</span></span>
-<span id="cb12-479"><a href="#cb12-479" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb12-480"><a href="#cb12-480" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<div class="sourceCode" id="cb13" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> &quot;Rhizosphère - Image bank selection&quot;</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a><span class="co">    css: css/styles.css  </span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a><span class="co">    embed-resources: true</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a><span class="co">    toc-depth: 4</span></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span><span class="co"> </span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a><span class="co">  message: false</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a><span class="co">  echo: false</span></span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true" tabindex="-1"></a>The large volume of images available in the DIAMS database makes it impossible to process them all exhaustively. It is therefore necessary to extract a relevant subset that is representative of the conditions throughout the entire period covered, while maintaining sufficient quality in terms of data completeness. The document describes the approach taken to achieve this selection.</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(lubridate)</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(fs)</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="fu">dir.exists</span>(<span class="st">&quot;../output&quot;</span>)) {</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">dir.create</span>(<span class="st">&quot;../output&quot;</span>)</span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true" tabindex="-1"></a><span class="fu">### Data loading</span></span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true" tabindex="-1"></a>Data from the fauna database is being utilised.</span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-37"><a href="#cb13-37" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-38"><a href="#cb13-38" aria-hidden="true" tabindex="-1"></a>df_fauna <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(<span class="st">&quot;../data/fauna_data.csv&quot;</span>, <span class="at">sep =</span> <span class="st">&quot;,&quot;</span>, <span class="at">na.strings =</span> <span class="fu">c</span>(<span class="st">&quot;&quot;</span>, <span class="st">&quot;NA&quot;</span>))</span>
+<span id="cb13-39"><a href="#cb13-39" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-40"><a href="#cb13-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-41"><a href="#cb13-41" aria-hidden="true" tabindex="-1"></a>Only metadata related to usable images (=samples) are retained, i.e. those for which fauna data are available.</span>
+<span id="cb13-42"><a href="#cb13-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-45"><a href="#cb13-45" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-46"><a href="#cb13-46" aria-hidden="true" tabindex="-1"></a>df <span class="ot">&lt;-</span> df_fauna <span class="sc">%&gt;%</span>  </span>
+<span id="cb13-47"><a href="#cb13-47" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(date, scanner, image_name) <span class="sc">%&gt;%</span></span>
+<span id="cb13-48"><a href="#cb13-48" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unique</span>() <span class="sc">%&gt;%</span></span>
+<span id="cb13-49"><a href="#cb13-49" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">date =</span> <span class="fu">ymd_hms</span>(date),</span>
+<span id="cb13-50"><a href="#cb13-50" aria-hidden="true" tabindex="-1"></a>    <span class="at">position =</span> <span class="fu">substr</span>(scanner, <span class="dv">4</span>, <span class="dv">4</span>),</span>
+<span id="cb13-51"><a href="#cb13-51" aria-hidden="true" tabindex="-1"></a>    <span class="at">depth =</span> <span class="fu">substr</span>(scanner, <span class="dv">5</span>, <span class="dv">6</span>),</span>
+<span id="cb13-52"><a href="#cb13-52" aria-hidden="true" tabindex="-1"></a>    <span class="at">orientation =</span> <span class="fu">substr</span>(scanner, <span class="dv">8</span>, <span class="dv">8</span>),</span>
+<span id="cb13-53"><a href="#cb13-53" aria-hidden="true" tabindex="-1"></a>    <span class="at">presence =</span> <span class="dv">1</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb13-54"><a href="#cb13-54" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(position <span class="sc">!=</span> <span class="st">&quot;B&quot;</span>)</span>
+<span id="cb13-55"><a href="#cb13-55" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-56"><a href="#cb13-56" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-57"><a href="#cb13-57" aria-hidden="true" tabindex="-1"></a><span class="fu">### Hour filtering</span></span>
+<span id="cb13-58"><a href="#cb13-58" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-59"><a href="#cb13-59" aria-hidden="true" tabindex="-1"></a>Correction of minute offset: Some images have a one-minute offset (minute = 01) that distorts the time selection. This bias is corrected by normalising the times.</span>
+<span id="cb13-60"><a href="#cb13-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-61"><a href="#cb13-61" aria-hidden="true" tabindex="-1"></a>**Only images captured at midnight and noon are selected.** These schedules are retained because they represent night and day periods respectively, regardless of seasonality.</span>
+<span id="cb13-62"><a href="#cb13-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-65"><a href="#cb13-65" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-66"><a href="#cb13-66" aria-hidden="true" tabindex="-1"></a>df <span class="ot">&lt;-</span> df <span class="sc">%&gt;%</span></span>
+<span id="cb13-67"><a href="#cb13-67" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">date =</span> <span class="fu">if_else</span>(<span class="fu">minute</span>(date) <span class="sc">==</span> <span class="dv">1</span>, date <span class="sc">-</span> <span class="fu">minutes</span>(<span class="dv">1</span>), date),</span>
+<span id="cb13-68"><a href="#cb13-68" aria-hidden="true" tabindex="-1"></a>    <span class="at">hour =</span> <span class="fu">hour</span>(date),</span>
+<span id="cb13-69"><a href="#cb13-69" aria-hidden="true" tabindex="-1"></a>    <span class="at">minute =</span> <span class="fu">minute</span>(date)) <span class="sc">%&gt;%</span></span>
+<span id="cb13-70"><a href="#cb13-70" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(minute <span class="sc">==</span> <span class="dv">0</span>, hour <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">12</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb13-71"><a href="#cb13-71" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(<span class="sc">-</span>hour, <span class="sc">-</span>minute)<span class="sc">%&gt;%</span></span>
+<span id="cb13-72"><a href="#cb13-72" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">hour =</span> <span class="fu">format</span>(date, <span class="st">&quot;%H:%M&quot;</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb13-73"><a href="#cb13-73" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">day =</span> <span class="fu">as.Date</span>(date)) <span class="sc">%&gt;%</span></span>
+<span id="cb13-74"><a href="#cb13-74" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(date,scanner,position,depth,orientation,presence,day, hour) <span class="sc">%&gt;%</span></span>
+<span id="cb13-75"><a href="#cb13-75" aria-hidden="true" tabindex="-1"></a>  <span class="fu">slice</span>(<span class="dv">1</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb13-76"><a href="#cb13-76" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>()</span>
+<span id="cb13-77"><a href="#cb13-77" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-78"><a href="#cb13-78" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-79"><a href="#cb13-79" aria-hidden="true" tabindex="-1"></a><span class="fu">### Completion of the dataset</span></span>
+<span id="cb13-80"><a href="#cb13-80" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-81"><a href="#cb13-81" aria-hidden="true" tabindex="-1"></a>In order to assess the completeness of the data, a comprehensive grid of all possible combinations (day, time, position, depth, orientation) is generated. This is then cross-referenced with the observed data in order to identify any missing combinations.</span>
+<span id="cb13-82"><a href="#cb13-82" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-85"><a href="#cb13-85" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-86"><a href="#cb13-86" aria-hidden="true" tabindex="-1"></a>df_complete <span class="ot">&lt;-</span> <span class="fu">expand_grid</span>(<span class="at">day =</span> <span class="fu">unique</span>(df<span class="sc">$</span>day),</span>
+<span id="cb13-87"><a href="#cb13-87" aria-hidden="true" tabindex="-1"></a>                          <span class="at">hour =</span> <span class="fu">c</span>(<span class="st">&quot;00:00&quot;</span>, <span class="st">&quot;12:00&quot;</span>),</span>
+<span id="cb13-88"><a href="#cb13-88" aria-hidden="true" tabindex="-1"></a>                          <span class="at">position =</span> <span class="fu">unique</span>(df<span class="sc">$</span>position),</span>
+<span id="cb13-89"><a href="#cb13-89" aria-hidden="true" tabindex="-1"></a>                          <span class="at">depth =</span> <span class="fu">unique</span>(df<span class="sc">$</span>depth),</span>
+<span id="cb13-90"><a href="#cb13-90" aria-hidden="true" tabindex="-1"></a>                          <span class="at">orientation =</span> <span class="fu">unique</span>(df<span class="sc">$</span>orientation)) <span class="sc">%&gt;%</span></span>
+<span id="cb13-91"><a href="#cb13-91" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(df, <span class="at">by =</span> <span class="fu">c</span>(<span class="st">&quot;day&quot;</span>, <span class="st">&quot;hour&quot;</span>, <span class="st">&quot;position&quot;</span>, <span class="st">&quot;depth&quot;</span>, <span class="st">&quot;orientation&quot;</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb13-92"><a href="#cb13-92" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">presence =</span> <span class="fu">replace_na</span>(presence, <span class="dv">0</span>))</span>
+<span id="cb13-93"><a href="#cb13-93" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-94"><a href="#cb13-94" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-95"><a href="#cb13-95" aria-hidden="true" tabindex="-1"></a>**Visualisation of filtered data :**</span>
+<span id="cb13-96"><a href="#cb13-96" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-99"><a href="#cb13-99" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-100"><a href="#cb13-100" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb13-101"><a href="#cb13-101" aria-hidden="true" tabindex="-1"></a>df_complete <span class="ot">&lt;-</span> df_complete <span class="sc">%&gt;%</span></span>
+<span id="cb13-102"><a href="#cb13-102" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">datetime =</span> <span class="fu">as.POSIXct</span>(<span class="fu">paste</span>(day, hour), <span class="at">format =</span> <span class="st">&quot;%Y-%m-%d %H:%M&quot;</span>),</span>
+<span id="cb13-103"><a href="#cb13-103" aria-hidden="true" tabindex="-1"></a>         <span class="at">scanner =</span> <span class="fu">paste</span>(position, depth,orientation, <span class="at">sep=</span><span class="st">&quot;_&quot;</span>))</span>
+<span id="cb13-104"><a href="#cb13-104" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-105"><a href="#cb13-105" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(df_complete, <span class="fu">aes</span>(<span class="at">x =</span> datetime, <span class="at">y =</span> scanner, <span class="at">color =</span> <span class="fu">as.factor</span>(presence))) <span class="sc">+</span></span>
+<span id="cb13-106"><a href="#cb13-106" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">2</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
+<span id="cb13-107"><a href="#cb13-107" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">&quot;0&quot;</span> <span class="ot">=</span> <span class="st">&quot;grey80&quot;</span>, <span class="st">&quot;1&quot;</span> <span class="ot">=</span> <span class="st">&quot;#F4631E&quot;</span>), <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">&quot;Absence&quot;</span>, <span class="st">&quot;Presence&quot;</span>), <span class="at">name =</span> <span class="st">&quot;Image&quot;</span>) <span class="sc">+</span></span>
+<span id="cb13-108"><a href="#cb13-108" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;Date&quot;</span>, <span class="at">y =</span> <span class="st">&quot;Scanner&quot;</span>, <span class="at">title =</span> <span class="st">&quot;Presence/absence of images by scanner and date&quot;</span>) <span class="sc">+</span></span>
+<span id="cb13-109"><a href="#cb13-109" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
+<span id="cb13-110"><a href="#cb13-110" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">axis.text.x =</span> <span class="fu">element_text</span>(<span class="at">angle =</span> <span class="dv">45</span>, <span class="at">hjust =</span> <span class="dv">1</span>))</span>
+<span id="cb13-111"><a href="#cb13-111" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-112"><a href="#cb13-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-113"><a href="#cb13-113" aria-hidden="true" tabindex="-1"></a><span class="fu">### Period selection</span></span>
+<span id="cb13-114"><a href="#cb13-114" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-115"><a href="#cb13-115" aria-hidden="true" tabindex="-1"></a>To guarantee the quality of the selected subset, data completeness is verified for each acquisition date and over continuous periods.</span>
+<span id="cb13-116"><a href="#cb13-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-117"><a href="#cb13-117" aria-hidden="true" tabindex="-1"></a>First, the **expected number of images per day** is determined.</span>
+<span id="cb13-118"><a href="#cb13-118" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-121"><a href="#cb13-121" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-122"><a href="#cb13-122" aria-hidden="true" tabindex="-1"></a>nb_img_day <span class="ot">&lt;-</span> <span class="fu">n_distinct</span>(df_complete<span class="sc">$</span>scanner) <span class="sc">*</span> <span class="dv">2</span> </span>
+<span id="cb13-123"><a href="#cb13-123" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Number of images expected per day : &quot;</span>, nb_img_day)</span>
+<span id="cb13-124"><a href="#cb13-124" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-125"><a href="#cb13-125" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-126"><a href="#cb13-126" aria-hidden="true" tabindex="-1"></a>We then identify the days on which at least **60% of these images are present**.</span>
+<span id="cb13-127"><a href="#cb13-127" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-130"><a href="#cb13-130" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-131"><a href="#cb13-131" aria-hidden="true" tabindex="-1"></a>prop <span class="ot">=</span> <span class="fl">0.65</span></span>
+<span id="cb13-132"><a href="#cb13-132" aria-hidden="true" tabindex="-1"></a>days_complete <span class="ot">&lt;-</span> df_complete <span class="sc">%&gt;%</span></span>
+<span id="cb13-133"><a href="#cb13-133" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(day) <span class="sc">%&gt;%</span></span>
+<span id="cb13-134"><a href="#cb13-134" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">n =</span> <span class="fu">sum</span>(presence), <span class="at">.groups =</span> <span class="st">&quot;drop&quot;</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb13-135"><a href="#cb13-135" aria-hidden="true" tabindex="-1"></a>   <span class="fu">mutate</span>(<span class="at">complet =</span> n <span class="sc">&gt;=</span> (nb_img_day <span class="sc">*</span> prop))</span>
+<span id="cb13-136"><a href="#cb13-136" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Number of images expected per day : &quot;</span>, <span class="fu">round</span>(nb_img_day <span class="sc">*</span> prop, <span class="dv">0</span>))</span>
+<span id="cb13-137"><a href="#cb13-137" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-138"><a href="#cb13-138" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-139"><a href="#cb13-139" aria-hidden="true" tabindex="-1"></a>We select the **groups of 7 consecutive days** that meet this criterion.</span>
+<span id="cb13-140"><a href="#cb13-140" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-143"><a href="#cb13-143" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-144"><a href="#cb13-144" aria-hidden="true" tabindex="-1"></a>duration_min_period <span class="ot">=</span> <span class="dv">7</span></span>
+<span id="cb13-145"><a href="#cb13-145" aria-hidden="true" tabindex="-1"></a><span class="co">#identification of continuous groups of full days</span></span>
+<span id="cb13-146"><a href="#cb13-146" aria-hidden="true" tabindex="-1"></a>days_complete <span class="ot">&lt;-</span> days_complete <span class="sc">%&gt;%</span></span>
+<span id="cb13-147"><a href="#cb13-147" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(day) <span class="sc">%&gt;%</span></span>
+<span id="cb13-148"><a href="#cb13-148" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">gap =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="fu">diff</span>(day)),</span>
+<span id="cb13-149"><a href="#cb13-149" aria-hidden="true" tabindex="-1"></a>    <span class="at">group =</span> <span class="fu">cumsum</span>(gap <span class="sc">!=</span> <span class="dv">1</span> <span class="sc">|</span> <span class="sc">!</span>complet)) </span>
+<span id="cb13-150"><a href="#cb13-150" aria-hidden="true" tabindex="-1"></a><span class="co">#selection of groups of more than 7 consecutive full days</span></span>
+<span id="cb13-151"><a href="#cb13-151" aria-hidden="true" tabindex="-1"></a>valid_days <span class="ot">&lt;-</span> days_complete <span class="sc">%&gt;%</span></span>
+<span id="cb13-152"><a href="#cb13-152" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(complet) <span class="sc">%&gt;%</span></span>
+<span id="cb13-153"><a href="#cb13-153" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(group) <span class="sc">%&gt;%</span></span>
+<span id="cb13-154"><a href="#cb13-154" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(n <span class="sc">&gt;=</span> duration_min_period) <span class="sc">%&gt;%</span></span>
+<span id="cb13-155"><a href="#cb13-155" aria-hidden="true" tabindex="-1"></a>  <span class="fu">inner_join</span>(days_complete, <span class="at">by =</span> <span class="st">&quot;group&quot;</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb13-156"><a href="#cb13-156" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pull</span>(day)</span>
+<span id="cb13-157"><a href="#cb13-157" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-158"><a href="#cb13-158" aria-hidden="true" tabindex="-1"></a>df_final <span class="ot">&lt;-</span> df_complete <span class="sc">%&gt;%</span></span>
+<span id="cb13-159"><a href="#cb13-159" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(day <span class="sc">%in%</span> valid_days)</span>
+<span id="cb13-160"><a href="#cb13-160" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-161"><a href="#cb13-161" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-162"><a href="#cb13-162" aria-hidden="true" tabindex="-1"></a>**Viewing filtered data:**</span>
+<span id="cb13-163"><a href="#cb13-163" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-166"><a href="#cb13-166" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-167"><a href="#cb13-167" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb13-168"><a href="#cb13-168" aria-hidden="true" tabindex="-1"></a>df_final<span class="sc">%&gt;%</span></span>
+<span id="cb13-169"><a href="#cb13-169" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(datetime<span class="sc">&gt;</span> <span class="fu">as.Date</span>(<span class="st">&#39;2024-02-01&#39;</span>) <span class="sc">&amp;</span> datetime <span class="sc">&lt;</span> <span class="fu">as.Date</span>(<span class="st">&#39;2025-07-01&#39;</span>))<span class="sc">%&gt;%</span></span>
+<span id="cb13-170"><a href="#cb13-170" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> datetime, <span class="at">y =</span> scanner, <span class="at">color =</span> <span class="fu">as.factor</span>(presence))) <span class="sc">+</span></span>
+<span id="cb13-171"><a href="#cb13-171" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">2</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
+<span id="cb13-172"><a href="#cb13-172" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(</span>
+<span id="cb13-173"><a href="#cb13-173" aria-hidden="true" tabindex="-1"></a>    <span class="at">values =</span> <span class="fu">c</span>(<span class="st">&quot;0&quot;</span> <span class="ot">=</span> <span class="st">&quot;grey80&quot;</span>, <span class="st">&quot;1&quot;</span> <span class="ot">=</span> <span class="st">&quot;#F4631E&quot;</span>),</span>
+<span id="cb13-174"><a href="#cb13-174" aria-hidden="true" tabindex="-1"></a>    <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">&quot;Absence&quot;</span>, <span class="st">&quot;Presence&quot;</span>),</span>
+<span id="cb13-175"><a href="#cb13-175" aria-hidden="true" tabindex="-1"></a>    <span class="at">name =</span> <span class="st">&quot;Image&quot;</span></span>
+<span id="cb13-176"><a href="#cb13-176" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb13-177"><a href="#cb13-177" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb13-178"><a href="#cb13-178" aria-hidden="true" tabindex="-1"></a>    <span class="at">x =</span> <span class="st">&quot;Date&quot;</span>,</span>
+<span id="cb13-179"><a href="#cb13-179" aria-hidden="true" tabindex="-1"></a>    <span class="at">y =</span> <span class="st">&quot;Scanner&quot;</span>,</span>
+<span id="cb13-180"><a href="#cb13-180" aria-hidden="true" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">&quot;Presence/absence of images by scanner and date&quot;</span></span>
+<span id="cb13-181"><a href="#cb13-181" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb13-182"><a href="#cb13-182" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_datetime</span>(</span>
+<span id="cb13-183"><a href="#cb13-183" aria-hidden="true" tabindex="-1"></a>    <span class="at">date_breaks =</span> <span class="st">&quot;1 month&quot;</span>,</span>
+<span id="cb13-184"><a href="#cb13-184" aria-hidden="true" tabindex="-1"></a>    <span class="at">date_labels =</span> <span class="st">&quot;%b %Y&quot;</span>) <span class="sc">+</span></span>
+<span id="cb13-185"><a href="#cb13-185" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
+<span id="cb13-186"><a href="#cb13-186" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">axis.text.x =</span> <span class="fu">element_text</span>(<span class="at">angle =</span> <span class="dv">45</span>, <span class="at">hjust =</span> <span class="dv">1</span>))</span>
+<span id="cb13-187"><a href="#cb13-187" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-188"><a href="#cb13-188" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-189"><a href="#cb13-189" aria-hidden="true" tabindex="-1"></a><span class="fu">### Selection of representative weeks</span></span>
+<span id="cb13-190"><a href="#cb13-190" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-191"><a href="#cb13-191" aria-hidden="true" tabindex="-1"></a>In order to cover different **seasonal and crop phases**, several 7-day periods spread throughout the year are targeted.</span>
+<span id="cb13-192"><a href="#cb13-192" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-193"><a href="#cb13-193" aria-hidden="true" tabindex="-1"></a>Five target dates, spread throughout the year, are selected as the starting point for each 7-day period. For each date, the following 7 days are retrieved from the filtered data. Days with at least 90% of the expected images are counted. A week is considered &quot;complete&quot; if all 7 days are valid.</span>
+<span id="cb13-194"><a href="#cb13-194" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-197"><a href="#cb13-197" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-198"><a href="#cb13-198" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb13-199"><a href="#cb13-199" aria-hidden="true" tabindex="-1"></a>target_dates <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
+<span id="cb13-200"><a href="#cb13-200" aria-hidden="true" tabindex="-1"></a>  <span class="at">period =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">7</span>,</span>
+<span id="cb13-201"><a href="#cb13-201" aria-hidden="true" tabindex="-1"></a>  <span class="at">start_date =</span> <span class="fu">as.Date</span>(<span class="fu">c</span>(<span class="st">&quot;2024-03-20&quot;</span>, <span class="st">&quot;2024-05-25&quot;</span>, </span>
+<span id="cb13-202"><a href="#cb13-202" aria-hidden="true" tabindex="-1"></a>                         <span class="st">&quot;2024-07-15&quot;</span>, <span class="st">&quot;2024-09-19&quot;</span>, </span>
+<span id="cb13-203"><a href="#cb13-203" aria-hidden="true" tabindex="-1"></a>                         <span class="st">&quot;2024-12-10&quot;</span>, <span class="st">&quot;2025-02-15&quot;</span>, <span class="st">&quot;2025-04-20&quot;</span>)))</span>
+<span id="cb13-204"><a href="#cb13-204" aria-hidden="true" tabindex="-1"></a>selected_weeks <span class="ot">&lt;-</span> target_dates <span class="sc">%&gt;%</span></span>
+<span id="cb13-205"><a href="#cb13-205" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">data =</span> <span class="fu">map</span>(start_date, <span class="sc">~</span> df_final <span class="sc">%&gt;%</span></span>
+<span id="cb13-206"><a href="#cb13-206" aria-hidden="true" tabindex="-1"></a>                      <span class="fu">filter</span>(day <span class="sc">&gt;=</span> .x, day <span class="sc">&lt;=</span> .x <span class="sc">+</span> (duration_min_period<span class="dv">-1</span>)))) <span class="sc">%&gt;%</span></span>
+<span id="cb13-207"><a href="#cb13-207" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(<span class="at">cols =</span> <span class="fu">c</span>(data))</span>
+<span id="cb13-208"><a href="#cb13-208" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-209"><a href="#cb13-209" aria-hidden="true" tabindex="-1"></a>validity_weeks <span class="ot">&lt;-</span> selected_weeks <span class="sc">%&gt;%</span></span>
+<span id="cb13-210"><a href="#cb13-210" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(period, day, <span class="at">wt =</span> presence) <span class="sc">%&gt;%</span></span>
+<span id="cb13-211"><a href="#cb13-211" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(period) <span class="sc">%&gt;%</span></span>
+<span id="cb13-212"><a href="#cb13-212" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">valid_days =</span> <span class="fu">sum</span>(n <span class="sc">&gt;=</span> nb_img_day <span class="sc">*</span> prop), <span class="at">complet =</span> valid_days <span class="sc">==</span> duration_min_period, <span class="at">.groups =</span> <span class="st">&quot;drop&quot;</span>)</span>
+<span id="cb13-213"><a href="#cb13-213" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-214"><a href="#cb13-214" aria-hidden="true" tabindex="-1"></a><span class="fu">print</span>(validity_weeks)</span>
+<span id="cb13-215"><a href="#cb13-215" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-216"><a href="#cb13-216" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-217"><a href="#cb13-217" aria-hidden="true" tabindex="-1"></a>Each period is associated with a crop and a season according to its dates, by cross-referencing sowing/harvesting periods and calendar definitions of seasons.</span>
+<span id="cb13-218"><a href="#cb13-218" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-221"><a href="#cb13-221" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-222"><a href="#cb13-222" aria-hidden="true" tabindex="-1"></a>crops <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
+<span id="cb13-223"><a href="#cb13-223" aria-hidden="true" tabindex="-1"></a>  <span class="at">crop =</span> <span class="fu">c</span>(<span class="st">&quot;wheat&quot;</span>, <span class="st">&quot;sorghum&quot;</span>, <span class="st">&quot;Bare soil&quot;</span>, <span class="st">&quot;Chickpea&quot;</span>),</span>
+<span id="cb13-224"><a href="#cb13-224" aria-hidden="true" tabindex="-1"></a>  <span class="at">start_date =</span> <span class="fu">as.Date</span>(<span class="fu">c</span>(<span class="st">&quot;2023-12-14&quot;</span>, <span class="st">&quot;2024-07-09&quot;</span>, <span class="st">&quot;2024-11-23&quot;</span>, <span class="st">&quot;2025-03-17&quot;</span>)),</span>
+<span id="cb13-225"><a href="#cb13-225" aria-hidden="true" tabindex="-1"></a>  <span class="at">final_date   =</span> <span class="fu">as.Date</span>(<span class="fu">c</span>(<span class="st">&quot;2024-07-08&quot;</span>, <span class="st">&quot;2024-11-22&quot;</span>, <span class="st">&quot;2025-03-16&quot;</span>, <span class="st">&quot;2025-07-15&quot;</span>))</span>
+<span id="cb13-226"><a href="#cb13-226" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb13-227"><a href="#cb13-227" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-228"><a href="#cb13-228" aria-hidden="true" tabindex="-1"></a>years <span class="ot">&lt;-</span> <span class="dv">2023</span><span class="sc">:</span><span class="dv">2025</span></span>
+<span id="cb13-229"><a href="#cb13-229" aria-hidden="true" tabindex="-1"></a>season <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;spring&quot;</span>, <span class="st">&quot;summer&quot;</span>, <span class="st">&quot;autumn&quot;</span>, <span class="st">&quot;winter&quot;</span>)</span>
+<span id="cb13-230"><a href="#cb13-230" aria-hidden="true" tabindex="-1"></a>seasons <span class="ot">&lt;-</span> <span class="fu">bind_rows</span>(<span class="fu">lapply</span>(years, <span class="cf">function</span>(an) {</span>
+<span id="cb13-231"><a href="#cb13-231" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tibble</span>(</span>
+<span id="cb13-232"><a href="#cb13-232" aria-hidden="true" tabindex="-1"></a>    <span class="at">season =</span> season,</span>
+<span id="cb13-233"><a href="#cb13-233" aria-hidden="true" tabindex="-1"></a>    <span class="at">start_date =</span> <span class="fu">as.Date</span>(<span class="fu">paste0</span>(an, <span class="fu">c</span>(<span class="st">&quot;-03-21&quot;</span>, <span class="st">&quot;-06-21&quot;</span>, <span class="st">&quot;-09-21&quot;</span>, <span class="st">&quot;-12-21&quot;</span>))),</span>
+<span id="cb13-234"><a href="#cb13-234" aria-hidden="true" tabindex="-1"></a>    <span class="at">final_date =</span> <span class="fu">as.Date</span>(<span class="fu">paste0</span>(<span class="fu">c</span>(an, an, an, an <span class="sc">+</span> <span class="dv">1</span>), <span class="fu">c</span>(<span class="st">&quot;-06-20&quot;</span>, <span class="st">&quot;-09-20&quot;</span>, <span class="st">&quot;-12-20&quot;</span>, <span class="st">&quot;-03-20&quot;</span>))))</span>
+<span id="cb13-235"><a href="#cb13-235" aria-hidden="true" tabindex="-1"></a>}))</span>
+<span id="cb13-236"><a href="#cb13-236" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-237"><a href="#cb13-237" aria-hidden="true" tabindex="-1"></a>df_final <span class="ot">&lt;-</span> selected_weeks <span class="sc">%&gt;%</span></span>
+<span id="cb13-238"><a href="#cb13-238" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(crops <span class="sc">%&gt;%</span> <span class="fu">rowwise</span>() <span class="sc">%&gt;%</span> <span class="fu">mutate</span>(<span class="at">day =</span> <span class="fu">list</span>(<span class="fu">seq</span>(start_date, final_date, <span class="at">by =</span> <span class="st">&quot;day&quot;</span>))) <span class="sc">%&gt;%</span> <span class="fu">unnest</span>(<span class="at">cols =</span> <span class="fu">c</span>(day)) <span class="sc">%&gt;%</span> <span class="fu">select</span>(day, crop),</span>
+<span id="cb13-239"><a href="#cb13-239" aria-hidden="true" tabindex="-1"></a>            <span class="at">by =</span> <span class="st">&quot;day&quot;</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb13-240"><a href="#cb13-240" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(seasons <span class="sc">%&gt;%</span> <span class="fu">rowwise</span>() <span class="sc">%&gt;%</span> <span class="fu">mutate</span>(<span class="at">day =</span> <span class="fu">list</span>(<span class="fu">seq</span>(start_date, final_date, <span class="at">by =</span> <span class="st">&quot;day&quot;</span>))) <span class="sc">%&gt;%</span> <span class="fu">unnest</span>(<span class="at">cols =</span> <span class="fu">c</span>(day)) <span class="sc">%&gt;%</span> <span class="fu">select</span>(day, season),</span>
+<span id="cb13-241"><a href="#cb13-241" aria-hidden="true" tabindex="-1"></a>            <span class="at">by =</span> <span class="st">&quot;day&quot;</span>)</span>
+<span id="cb13-242"><a href="#cb13-242" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-243"><a href="#cb13-243" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-244"><a href="#cb13-244" aria-hidden="true" tabindex="-1"></a>**Summary of selected periods:**</span>
+<span id="cb13-245"><a href="#cb13-245" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-248"><a href="#cb13-248" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-249"><a href="#cb13-249" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb13-250"><a href="#cb13-250" aria-hidden="true" tabindex="-1"></a>synthesis_table <span class="ot">&lt;-</span> df_final <span class="sc">%&gt;%</span></span>
+<span id="cb13-251"><a href="#cb13-251" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(period) <span class="sc">%&gt;%</span></span>
+<span id="cb13-252"><a href="#cb13-252" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(</span>
+<span id="cb13-253"><a href="#cb13-253" aria-hidden="true" tabindex="-1"></a>    <span class="at">start_date =</span> <span class="fu">min</span>(day),</span>
+<span id="cb13-254"><a href="#cb13-254" aria-hidden="true" tabindex="-1"></a>    <span class="at">final_date =</span> <span class="fu">max</span>(day),</span>
+<span id="cb13-255"><a href="#cb13-255" aria-hidden="true" tabindex="-1"></a>    <span class="at">nb_images =</span> <span class="fu">sum</span>(presence),</span>
+<span id="cb13-256"><a href="#cb13-256" aria-hidden="true" tabindex="-1"></a>    <span class="at">crops =</span> <span class="fu">paste</span>(<span class="fu">unique</span>(<span class="fu">na.omit</span>(crop)), <span class="at">collapse =</span> <span class="st">&quot;, &quot;</span>),</span>
+<span id="cb13-257"><a href="#cb13-257" aria-hidden="true" tabindex="-1"></a>    <span class="at">seasons =</span> <span class="fu">paste</span>(<span class="fu">unique</span>(<span class="fu">na.omit</span>(season)), <span class="at">collapse =</span> <span class="st">&quot;, &quot;</span>),</span>
+<span id="cb13-258"><a href="#cb13-258" aria-hidden="true" tabindex="-1"></a>    <span class="at">.groups =</span> <span class="st">&quot;drop&quot;</span> )</span>
+<span id="cb13-259"><a href="#cb13-259" aria-hidden="true" tabindex="-1"></a>knitr<span class="sc">::</span><span class="fu">kable</span>(synthesis_table, <span class="at">caption =</span> <span class="st">&quot;Summary of selected periods&quot;</span>)</span>
+<span id="cb13-260"><a href="#cb13-260" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-261"><a href="#cb13-261" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-262"><a href="#cb13-262" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-263"><a href="#cb13-263" aria-hidden="true" tabindex="-1"></a>**Final display of selected periods**</span>
+<span id="cb13-264"><a href="#cb13-264" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-267"><a href="#cb13-267" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-268"><a href="#cb13-268" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb13-269"><a href="#cb13-269" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(df_final, <span class="fu">aes</span>(<span class="at">x =</span> datetime, <span class="at">y =</span> scanner, <span class="at">color =</span> <span class="fu">as.factor</span>(presence))) <span class="sc">+</span></span>
+<span id="cb13-270"><a href="#cb13-270" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">2</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
+<span id="cb13-271"><a href="#cb13-271" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">&quot;0&quot;</span> <span class="ot">=</span> <span class="st">&quot;grey80&quot;</span>, <span class="st">&quot;1&quot;</span> <span class="ot">=</span> <span class="st">&quot;#F4631E&quot;</span>), <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">&quot;Absence&quot;</span>, <span class="st">&quot;Presence&quot;</span>), <span class="at">name =</span> <span class="st">&quot;Image&quot;</span>) <span class="sc">+</span></span>
+<span id="cb13-272"><a href="#cb13-272" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;Date&quot;</span>, <span class="at">y =</span> <span class="st">&quot;Scanner&quot;</span>, <span class="at">title =</span> <span class="st">&quot;Presence/absence of images by scanner and date&quot;</span>) <span class="sc">+</span></span>
+<span id="cb13-273"><a href="#cb13-273" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_datetime</span>(<span class="at">date_breaks =</span> <span class="st">&quot;1 month&quot;</span>, <span class="at">date_labels =</span> <span class="st">&quot;%b %Y&quot;</span>) <span class="sc">+</span></span>
+<span id="cb13-274"><a href="#cb13-274" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
+<span id="cb13-275"><a href="#cb13-275" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">axis.text.x =</span> <span class="fu">element_text</span>(<span class="at">angle =</span> <span class="dv">45</span>, <span class="at">hjust =</span> <span class="dv">1</span>))</span>
+<span id="cb13-276"><a href="#cb13-276" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-277"><a href="#cb13-277" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-278"><a href="#cb13-278" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-279"><a href="#cb13-279" aria-hidden="true" tabindex="-1"></a><span class="fu">### Selection of previous images for differentiation</span></span>
+<span id="cb13-280"><a href="#cb13-280" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-281"><a href="#cb13-281" aria-hidden="true" tabindex="-1"></a>Creation of a copy of the image set with dates shifted by 9 days and selection of corresponding images</span>
+<span id="cb13-282"><a href="#cb13-282" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-285"><a href="#cb13-285" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-286"><a href="#cb13-286" aria-hidden="true" tabindex="-1"></a><span class="co"># We shift the time window back by 9 days to find the &#39;starting point&#39; for each observation.</span></span>
+<span id="cb13-287"><a href="#cb13-287" aria-hidden="true" tabindex="-1"></a>df_reference <span class="ot">&lt;-</span> df_final <span class="sc">%&gt;%</span></span>
+<span id="cb13-288"><a href="#cb13-288" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(presence<span class="sc">==</span><span class="dv">1</span>)<span class="sc">%&gt;%</span></span>
+<span id="cb13-289"><a href="#cb13-289" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">date =</span> date <span class="sc">-</span> <span class="fu">days</span>(<span class="dv">9</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb13-290"><a href="#cb13-290" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(depth, position, orientation, date) <span class="sc">%&gt;%</span></span>
+<span id="cb13-291"><a href="#cb13-291" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(df <span class="sc">%&gt;%</span> </span>
+<span id="cb13-292"><a href="#cb13-292" aria-hidden="true" tabindex="-1"></a>      <span class="fu">select</span>(depth, position, orientation, date, image_name), <span class="at">by =</span> <span class="fu">c</span>(<span class="st">&quot;depth&quot;</span>, <span class="st">&quot;position&quot;</span>, <span class="st">&quot;orientation&quot;</span>, <span class="st">&quot;date&quot;</span>))<span class="sc">%&gt;%</span></span>
+<span id="cb13-293"><a href="#cb13-293" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">presence =</span> <span class="fu">if_else</span>(<span class="fu">is.na</span>(image_name), <span class="dv">0</span>, <span class="dv">1</span>),</span>
+<span id="cb13-294"><a href="#cb13-294" aria-hidden="true" tabindex="-1"></a>         <span class="at">day_ref =</span> <span class="fu">as.Date</span>(date),</span>
+<span id="cb13-295"><a href="#cb13-295" aria-hidden="true" tabindex="-1"></a>         <span class="at">hour_ref =</span> <span class="fu">format</span>(date, <span class="st">&quot;%H:%M&quot;</span>))</span>
+<span id="cb13-296"><a href="#cb13-296" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-297"><a href="#cb13-297" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-300"><a href="#cb13-300" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-301"><a href="#cb13-301" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb13-302"><a href="#cb13-302" aria-hidden="true" tabindex="-1"></a>df_reference <span class="sc">%&gt;%</span> </span>
+<span id="cb13-303"><a href="#cb13-303" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">scanner =</span> <span class="fu">paste</span>(position, depth, <span class="at">sep=</span><span class="st">&quot;_&quot;</span>))<span class="sc">%&gt;%</span></span>
+<span id="cb13-304"><a href="#cb13-304" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> date, <span class="at">y =</span> scanner, <span class="at">color =</span> <span class="fu">as.factor</span>(presence))) <span class="sc">+</span></span>
+<span id="cb13-305"><a href="#cb13-305" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">2</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
+<span id="cb13-306"><a href="#cb13-306" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">&quot;0&quot;</span> <span class="ot">=</span> <span class="st">&quot;grey80&quot;</span>, <span class="st">&quot;1&quot;</span> <span class="ot">=</span> <span class="st">&quot;darkgreen&quot;</span>), <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">&quot;Absence&quot;</span>, <span class="st">&quot;Presence&quot;</span>), <span class="at">name =</span> <span class="st">&quot;Image&quot;</span>) <span class="sc">+</span></span>
+<span id="cb13-307"><a href="#cb13-307" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;Date&quot;</span>, <span class="at">y =</span> <span class="st">&quot;Scanner&quot;</span>, <span class="at">title =</span> <span class="st">&quot;Presence/absence of images by scanner and date&quot;</span>) <span class="sc">+</span></span>
+<span id="cb13-308"><a href="#cb13-308" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_datetime</span>(<span class="at">date_breaks =</span> <span class="st">&quot;1 month&quot;</span>, <span class="at">date_labels =</span> <span class="st">&quot;%b %Y&quot;</span>) <span class="sc">+</span></span>
+<span id="cb13-309"><a href="#cb13-309" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
+<span id="cb13-310"><a href="#cb13-310" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">axis.text.x =</span> <span class="fu">element_text</span>(<span class="at">angle =</span> <span class="dv">45</span>, <span class="at">hjust =</span> <span class="dv">1</span>))</span>
+<span id="cb13-311"><a href="#cb13-311" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-312"><a href="#cb13-312" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-313"><a href="#cb13-313" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-314"><a href="#cb13-314" aria-hidden="true" tabindex="-1"></a>Filtering images from the current dataset based on missing images from the previous dataset :</span>
+<span id="cb13-315"><a href="#cb13-315" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-318"><a href="#cb13-318" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-319"><a href="#cb13-319" aria-hidden="true" tabindex="-1"></a><span class="co"># We only keep &#39;Current&#39; images (T0) that have a valid &#39;Reference&#39; image (T-9).</span></span>
+<span id="cb13-320"><a href="#cb13-320" aria-hidden="true" tabindex="-1"></a><span class="co"># This ensures the differential analysis (e.g., growth measurement) is possible.</span></span>
+<span id="cb13-321"><a href="#cb13-321" aria-hidden="true" tabindex="-1"></a>df_final_filtered <span class="ot">&lt;-</span> df_final <span class="sc">%&gt;%</span></span>
+<span id="cb13-322"><a href="#cb13-322" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(presence <span class="sc">==</span> <span class="dv">1</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb13-323"><a href="#cb13-323" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">day_ref =</span> <span class="fu">as.Date</span>(date <span class="sc">-</span> <span class="fu">days</span>(<span class="dv">9</span>)),</span>
+<span id="cb13-324"><a href="#cb13-324" aria-hidden="true" tabindex="-1"></a>         <span class="at">hour_ref =</span> <span class="fu">format</span>(date <span class="sc">-</span> <span class="fu">days</span>(<span class="dv">9</span>), <span class="st">&quot;%H:%M&quot;</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb13-325"><a href="#cb13-325" aria-hidden="true" tabindex="-1"></a>  <span class="fu">inner_join</span>(df_reference <span class="sc">%&gt;%</span></span>
+<span id="cb13-326"><a href="#cb13-326" aria-hidden="true" tabindex="-1"></a>              <span class="fu">filter</span>(presence <span class="sc">==</span> <span class="dv">1</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb13-327"><a href="#cb13-327" aria-hidden="true" tabindex="-1"></a>              <span class="fu">select</span>(depth, position, orientation, day_ref, hour_ref),</span>
+<span id="cb13-328"><a href="#cb13-328" aria-hidden="true" tabindex="-1"></a>            <span class="at">by =</span> <span class="fu">c</span>(<span class="st">&quot;depth&quot;</span>, <span class="st">&quot;position&quot;</span>, <span class="st">&quot;orientation&quot;</span>, <span class="st">&quot;day_ref&quot;</span>, <span class="st">&quot;hour_ref&quot;</span>))<span class="sc">%&gt;%</span></span>
+<span id="cb13-329"><a href="#cb13-329" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">id_image =</span> <span class="st">&quot;current&quot;</span>)<span class="sc">%&gt;%</span></span>
+<span id="cb13-330"><a href="#cb13-330" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(scanner, date, id_image, image_name)</span>
+<span id="cb13-331"><a href="#cb13-331" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-332"><a href="#cb13-332" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-333"><a href="#cb13-333" aria-hidden="true" tabindex="-1"></a>Total list of images to be processed :</span>
+<span id="cb13-334"><a href="#cb13-334" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-337"><a href="#cb13-337" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-338"><a href="#cb13-338" aria-hidden="true" tabindex="-1"></a><span class="co"># We combine the filtered &#39;Current&#39; images and their &#39;Reference&#39; images </span></span>
+<span id="cb13-339"><a href="#cb13-339" aria-hidden="true" tabindex="-1"></a><span class="co"># into a single vertical list for processing.</span></span>
+<span id="cb13-340"><a href="#cb13-340" aria-hidden="true" tabindex="-1"></a>df_combined <span class="ot">&lt;-</span> df_reference <span class="sc">%&gt;%</span></span>
+<span id="cb13-341"><a href="#cb13-341" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">scanner =</span> <span class="fu">paste</span>(position, depth, orientation, <span class="at">sep=</span><span class="st">&quot;_&quot;</span>))<span class="sc">%&gt;%</span></span>
+<span id="cb13-342"><a href="#cb13-342" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(presence <span class="sc">==</span> <span class="dv">1</span>)<span class="sc">%&gt;%</span></span>
+<span id="cb13-343"><a href="#cb13-343" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">id_image =</span> <span class="st">&quot;reference&quot;</span>)<span class="sc">%&gt;%</span></span>
+<span id="cb13-344"><a href="#cb13-344" aria-hidden="true" tabindex="-1"></a>  <span class="fu">select</span>(scanner, date, id_image, image_name)<span class="sc">%&gt;%</span></span>
+<span id="cb13-345"><a href="#cb13-345" aria-hidden="true" tabindex="-1"></a>  <span class="fu">bind_rows</span>(., df_final_filtered)</span>
+<span id="cb13-346"><a href="#cb13-346" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-347"><a href="#cb13-347" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-350"><a href="#cb13-350" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-351"><a href="#cb13-351" aria-hidden="true" tabindex="-1"></a><span class="co">#| echo: false</span></span>
+<span id="cb13-352"><a href="#cb13-352" aria-hidden="true" tabindex="-1"></a>df_combined <span class="sc">%&gt;%</span></span>
+<span id="cb13-353"><a href="#cb13-353" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> date, <span class="at">y =</span> scanner, <span class="at">color =</span> <span class="fu">as.factor</span>(id_image))) <span class="sc">+</span></span>
+<span id="cb13-354"><a href="#cb13-354" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">size =</span> <span class="dv">2</span>, <span class="at">alpha =</span> <span class="fl">0.8</span>) <span class="sc">+</span></span>
+<span id="cb13-355"><a href="#cb13-355" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> <span class="fu">c</span>(<span class="st">&quot;reference&quot;</span> <span class="ot">=</span> <span class="st">&quot;darkgreen&quot;</span>, <span class="st">&quot;current&quot;</span> <span class="ot">=</span> <span class="st">&quot;#F4631E&quot;</span>), <span class="at">name =</span> <span class="st">&quot;Image&quot;</span>) <span class="sc">+</span></span>
+<span id="cb13-356"><a href="#cb13-356" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">&quot;Date&quot;</span>, <span class="at">y =</span> <span class="st">&quot;Scanner&quot;</span>, <span class="at">title =</span> <span class="st">&quot;Presence/absence of images by scanner and date&quot;</span>) <span class="sc">+</span></span>
+<span id="cb13-357"><a href="#cb13-357" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_datetime</span>(<span class="at">date_breaks =</span> <span class="st">&quot;1 month&quot;</span>, <span class="at">date_labels =</span> <span class="st">&quot;%b %Y&quot;</span>) <span class="sc">+</span></span>
+<span id="cb13-358"><a href="#cb13-358" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
+<span id="cb13-359"><a href="#cb13-359" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">axis.text.x =</span> <span class="fu">element_text</span>(<span class="at">angle =</span> <span class="dv">45</span>, <span class="at">hjust =</span> <span class="dv">1</span>))</span>
+<span id="cb13-360"><a href="#cb13-360" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-361"><a href="#cb13-361" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-364"><a href="#cb13-364" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-365"><a href="#cb13-365" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;--- FINAL COMPLETENESS REPORT ---</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb13-366"><a href="#cb13-366" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Initial target images (T0):      &quot;</span>, <span class="fu">nrow</span>(df_final), <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb13-367"><a href="#cb13-367" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Analyzable pairs (T0 + T-9):     &quot;</span>, <span class="fu">nrow</span>(df_final_filtered), <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb13-368"><a href="#cb13-368" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Number of missing images :&quot;</span>, <span class="fu">nrow</span>(df_final)<span class="sc">-</span><span class="fu">nrow</span>(df_final_filtered))</span>
+<span id="cb13-369"><a href="#cb13-369" aria-hidden="true" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Missing frame rate :&quot;</span>, <span class="fu">round</span>((<span class="dv">1</span><span class="sc">-</span>(<span class="fu">nrow</span>(df_final_filtered)<span class="sc">/</span><span class="fu">nrow</span>(df_final)))<span class="sc">*</span><span class="dv">100</span>, <span class="dv">2</span>), <span class="st">&quot;%&quot;</span>)</span>
+<span id="cb13-370"><a href="#cb13-370" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-371"><a href="#cb13-371" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-372"><a href="#cb13-372" aria-hidden="true" tabindex="-1"></a>|  |  |  |</span>
+<span id="cb13-373"><a href="#cb13-373" aria-hidden="true" tabindex="-1"></a>|------------------------|------------------------|------------------------|</span>
+<span id="cb13-374"><a href="#cb13-374" aria-hidden="true" tabindex="-1"></a>| **Dataset Name** | **Description** | **Role in the pipeline** |</span>
+<span id="cb13-375"><a href="#cb13-375" aria-hidden="true" tabindex="-1"></a>| **`df_complete`** | Theoretical grid vs. Observed data. | Used to calculate the initial missing data rate and identify stable periods. |</span>
+<span id="cb13-376"><a href="#cb13-376" aria-hidden="true" tabindex="-1"></a>| **`df_final`** | Targeted images based on seasonal periods. | Represents the &quot;intended&quot; scope of the study. |</span>
+<span id="cb13-377"><a href="#cb13-377" aria-hidden="true" tabindex="-1"></a>| **`df_reference`** | Set of images shifted by -9 days. | Acts as the baseline (J-9) for every observation. |</span>
+<span id="cb13-378"><a href="#cb13-378" aria-hidden="true" tabindex="-1"></a>| **`df_final_filtered`** | Images from <span class="in">`df_final`</span> that passed the J-9 check. | These are the &quot;Current&quot; images that are actually treatable. |</span>
+<span id="cb13-379"><a href="#cb13-379" aria-hidden="true" tabindex="-1"></a>| **`df_combined`** | Union of <span class="in">`df_final_filtered`</span> and their valid references. | The final list of all unique image names required from the server. |</span>
+<span id="cb13-380"><a href="#cb13-380" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-381"><a href="#cb13-381" aria-hidden="true" tabindex="-1"></a>: Dataset Characterization</span>
+<span id="cb13-382"><a href="#cb13-382" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-383"><a href="#cb13-383" aria-hidden="true" tabindex="-1"></a><span class="fu">### Creation of the image bank</span></span>
+<span id="cb13-384"><a href="#cb13-384" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-387"><a href="#cb13-387" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-388"><a href="#cb13-388" aria-hidden="true" tabindex="-1"></a>images_bank <span class="ot">&lt;-</span> <span class="fu">paste0</span>(<span class="fu">unique</span>(df_combined<span class="sc">$</span>image_name), <span class="st">&quot;.png&quot;</span>)</span>
+<span id="cb13-389"><a href="#cb13-389" aria-hidden="true" tabindex="-1"></a><span class="fu">writeLines</span>(images_bank, <span class="st">&quot;../output/image_bank.txt&quot;</span>)</span>
+<span id="cb13-390"><a href="#cb13-390" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb13-391"><a href="#cb13-391" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-392"><a href="#cb13-392" aria-hidden="true" tabindex="-1"></a><span class="fu">### Generalized Diagnostic Function</span></span>
+<span id="cb13-393"><a href="#cb13-393" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-396"><a href="#cb13-396" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb13-397"><a href="#cb13-397" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; Check Data Consistency</span></span>
+<span id="cb13-398"><a href="#cb13-398" aria-hidden="true" tabindex="-1"></a>check_integrity <span class="ot">&lt;-</span> <span class="cf">function</span>(expected_df, target, <span class="at">mode =</span> <span class="st">&quot;folder&quot;</span>, <span class="at">file_ext =</span> <span class="st">&quot;.png&quot;</span>, <span class="at">clean_regex =</span> <span class="cn">NULL</span>) {</span>
+<span id="cb13-399"><a href="#cb13-399" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb13-400"><a href="#cb13-400" aria-hidden="true" tabindex="-1"></a>  <span class="co"># 1. Get the list of IDs we EXPECT</span></span>
+<span id="cb13-401"><a href="#cb13-401" aria-hidden="true" tabindex="-1"></a>  expected_ids <span class="ot">&lt;-</span> <span class="fu">unique</span>(expected_df<span class="sc">$</span>image_name)</span>
+<span id="cb13-402"><a href="#cb13-402" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb13-403"><a href="#cb13-403" aria-hidden="true" tabindex="-1"></a>  <span class="co"># 2. Get the list of IDs we ACTUALLY HAVE</span></span>
+<span id="cb13-404"><a href="#cb13-404" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (mode <span class="sc">==</span> <span class="st">&quot;folder&quot;</span>) {</span>
+<span id="cb13-405"><a href="#cb13-405" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">dir.exists</span>(target)) <span class="fu">stop</span>(<span class="st">&quot;Directory not found: &quot;</span>, target)</span>
+<span id="cb13-406"><a href="#cb13-406" aria-hidden="true" tabindex="-1"></a>    actual_files <span class="ot">&lt;-</span> <span class="fu">list.files</span>(target, <span class="at">pattern =</span> <span class="fu">paste0</span>(file_ext, <span class="st">&quot;$&quot;</span>))</span>
+<span id="cb13-407"><a href="#cb13-407" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Remove extension to get the ID</span></span>
+<span id="cb13-408"><a href="#cb13-408" aria-hidden="true" tabindex="-1"></a>    actual_ids <span class="ot">&lt;-</span> <span class="fu">gsub</span>(<span class="fu">paste0</span>(file_ext, <span class="st">&quot;$&quot;</span>), <span class="st">&quot;&quot;</span>, actual_files)</span>
+<span id="cb13-409"><a href="#cb13-409" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Apply cleaning regex if provided (e.g., to remove _distance_root_growth)</span></span>
+<span id="cb13-410"><a href="#cb13-410" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.null</span>(clean_regex)) {</span>
+<span id="cb13-411"><a href="#cb13-411" aria-hidden="true" tabindex="-1"></a>      actual_ids <span class="ot">&lt;-</span> <span class="fu">unique</span>(<span class="fu">gsub</span>(clean_regex, <span class="st">&quot;&quot;</span>, actual_ids))</span>
+<span id="cb13-412"><a href="#cb13-412" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb13-413"><a href="#cb13-413" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> <span class="cf">if</span> (mode <span class="sc">==</span> <span class="st">&quot;csv&quot;</span>) {</span>
+<span id="cb13-414"><a href="#cb13-414" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">file.exists</span>(target)) <span class="fu">stop</span>(<span class="st">&quot;CSV file not found: &quot;</span>, target)</span>
+<span id="cb13-415"><a href="#cb13-415" aria-hidden="true" tabindex="-1"></a>    actual_data <span class="ot">&lt;-</span> <span class="fu">read.csv</span>(target)</span>
+<span id="cb13-416"><a href="#cb13-416" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="st">&quot;image_name&quot;</span> <span class="sc">%in%</span> <span class="fu">colnames</span>(actual_data)) <span class="fu">stop</span>(<span class="st">&quot;CSV must contain &#39;image_name&#39; column&quot;</span>)</span>
+<span id="cb13-417"><a href="#cb13-417" aria-hidden="true" tabindex="-1"></a>    actual_ids <span class="ot">&lt;-</span> <span class="fu">unique</span>(actual_data<span class="sc">$</span>image_name)</span>
+<span id="cb13-418"><a href="#cb13-418" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb13-419"><a href="#cb13-419" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-420"><a href="#cb13-420" aria-hidden="true" tabindex="-1"></a>  <span class="co"># 3. Comparison Logic</span></span>
+<span id="cb13-421"><a href="#cb13-421" aria-hidden="true" tabindex="-1"></a>  missing_ids <span class="ot">&lt;-</span> <span class="fu">setdiff</span>(expected_ids, actual_ids)</span>
+<span id="cb13-422"><a href="#cb13-422" aria-hidden="true" tabindex="-1"></a>  extra_ids   <span class="ot">&lt;-</span> <span class="fu">setdiff</span>(actual_ids, expected_ids)</span>
+<span id="cb13-423"><a href="#cb13-423" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb13-424"><a href="#cb13-424" aria-hidden="true" tabindex="-1"></a>  <span class="co"># 4. Reporting</span></span>
+<span id="cb13-425"><a href="#cb13-425" aria-hidden="true" tabindex="-1"></a>  n_exp <span class="ot">&lt;-</span> <span class="fu">length</span>(expected_ids)</span>
+<span id="cb13-426"><a href="#cb13-426" aria-hidden="true" tabindex="-1"></a>  n_act <span class="ot">&lt;-</span> <span class="fu">length</span>(actual_ids)</span>
+<span id="cb13-427"><a href="#cb13-427" aria-hidden="true" tabindex="-1"></a>  coverage <span class="ot">&lt;-</span> <span class="fu">round</span>((n_act <span class="sc">/</span> n_exp) <span class="sc">*</span> <span class="dv">100</span>, <span class="dv">2</span>)</span>
+<span id="cb13-428"><a href="#cb13-428" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb13-429"><a href="#cb13-429" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;</span><span class="sc">\n</span><span class="st">==========================================</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb13-430"><a href="#cb13-430" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;  INTEGRITY REPORT: &quot;</span>, <span class="fu">basename</span>(target), <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb13-431"><a href="#cb13-431" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;==========================================</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb13-432"><a href="#cb13-432" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;Expected Unique IDs: &quot;</span>, n_exp, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb13-433"><a href="#cb13-433" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;Actual Unique Found: &quot;</span>, n_act, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb13-434"><a href="#cb13-434" aria-hidden="true" tabindex="-1"></a>  <span class="fu">cat</span>(<span class="st">&quot;Coverage Rate:       &quot;</span>, coverage, <span class="st">&quot;%</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb13-435"><a href="#cb13-435" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb13-436"><a href="#cb13-436" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">length</span>(missing_ids) <span class="sc">&gt;</span> <span class="dv">0</span>) {</span>
+<span id="cb13-437"><a href="#cb13-437" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;</span><span class="sc">\n</span><span class="st">MISSING DATA (&quot;</span>, <span class="fu">length</span>(missing_ids), <span class="st">&quot; items):</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb13-438"><a href="#cb13-438" aria-hidden="true" tabindex="-1"></a>    <span class="fu">print</span>(<span class="fu">head</span>(<span class="fu">sort</span>(missing_ids), <span class="dv">10</span>))</span>
+<span id="cb13-439"><a href="#cb13-439" aria-hidden="true" tabindex="-1"></a>  } <span class="cf">else</span> {</span>
+<span id="cb13-440"><a href="#cb13-440" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;</span><span class="sc">\n</span><span class="st">SUCCESS: No missing data.</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb13-441"><a href="#cb13-441" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb13-442"><a href="#cb13-442" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb13-443"><a href="#cb13-443" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span> (<span class="fu">length</span>(extra_ids) <span class="sc">&gt;</span> <span class="dv">0</span>) {</span>
+<span id="cb13-444"><a href="#cb13-444" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;</span><span class="sc">\n</span><span class="st">EXTRA DATA (&quot;</span>, <span class="fu">length</span>(extra_ids), <span class="st">&quot; items found but not expected)</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb13-445"><a href="#cb13-445" aria-hidden="true" tabindex="-1"></a>    <span class="fu">cat</span>(<span class="st">&quot;Named (&quot;</span>, <span class="fu">sort</span>(extra_ids))</span>
+<span id="cb13-446"><a href="#cb13-446" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb13-447"><a href="#cb13-447" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb13-448"><a href="#cb13-448" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(<span class="fu">invisible</span>(missing_ids)) <span class="co"># Returns the list silently for further use</span></span>
+<span id="cb13-449"><a href="#cb13-449" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb13-450"><a href="#cb13-450" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-451"><a href="#cb13-451" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @param expected_df The reference dataframe (e.g., df_combined or df_final_filtered)</span></span>
+<span id="cb13-452"><a href="#cb13-452" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @param target Path to a directory OR path to a CSV file</span></span>
+<span id="cb13-453"><a href="#cb13-453" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @param mode Either &quot;folder&quot; or &quot;csv&quot;</span></span>
+<span id="cb13-454"><a href="#cb13-454" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @param file_ext If mode=&quot;folder&quot;, the extension to look for (default &quot;.png&quot;)</span></span>
+<span id="cb13-455"><a href="#cb13-455" aria-hidden="true" tabindex="-1"></a><span class="co">#&#39; @param clean_regex A regex pattern to remove suffixes from filenames (optional)</span></span>
+<span id="cb13-456"><a href="#cb13-456" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Checking the raw images folder</span></span>
+<span id="cb13-457"><a href="#cb13-457" aria-hidden="true" tabindex="-1"></a><span class="fu">check_integrity</span>(</span>
+<span id="cb13-458"><a href="#cb13-458" aria-hidden="true" tabindex="-1"></a>  <span class="at">expected_df =</span> df_combined, </span>
+<span id="cb13-459"><a href="#cb13-459" aria-hidden="true" tabindex="-1"></a>  <span class="at">target =</span> <span class="st">&quot;/media/ebelaud/INTENSO/rhizosphere_image_bank/&quot;</span>, </span>
+<span id="cb13-460"><a href="#cb13-460" aria-hidden="true" tabindex="-1"></a>  <span class="at">mode =</span> <span class="st">&quot;folder&quot;</span>, </span>
+<span id="cb13-461"><a href="#cb13-461" aria-hidden="true" tabindex="-1"></a>  <span class="at">file_ext =</span> <span class="st">&quot;.png&quot;</span></span>
+<span id="cb13-462"><a href="#cb13-462" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb13-463"><a href="#cb13-463" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-464"><a href="#cb13-464" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Checking the output raster folder (tif)</span></span>
+<span id="cb13-465"><a href="#cb13-465" aria-hidden="true" tabindex="-1"></a>raster_suffixes <span class="ot">&lt;-</span> <span class="st">&quot;(_distance_root_growth|_distance_root_mature|_root_growth|_root_mature)&quot;</span></span>
+<span id="cb13-466"><a href="#cb13-466" aria-hidden="true" tabindex="-1"></a><span class="fu">check_integrity</span>(</span>
+<span id="cb13-467"><a href="#cb13-467" aria-hidden="true" tabindex="-1"></a>  <span class="at">expected_df =</span> df_final_filtered, </span>
+<span id="cb13-468"><a href="#cb13-468" aria-hidden="true" tabindex="-1"></a>  <span class="at">target =</span> <span class="st">&quot;/media/ebelaud/INTENSO/output_raster&quot;</span>, </span>
+<span id="cb13-469"><a href="#cb13-469" aria-hidden="true" tabindex="-1"></a>  <span class="at">mode =</span> <span class="st">&quot;folder&quot;</span>, </span>
+<span id="cb13-470"><a href="#cb13-470" aria-hidden="true" tabindex="-1"></a>  <span class="at">file_ext =</span> <span class="st">&quot;.tif&quot;</span>,</span>
+<span id="cb13-471"><a href="#cb13-471" aria-hidden="true" tabindex="-1"></a>  <span class="at">clean_regex =</span> raster_suffixes</span>
+<span id="cb13-472"><a href="#cb13-472" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb13-473"><a href="#cb13-473" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-474"><a href="#cb13-474" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Checking the final data results</span></span>
+<span id="cb13-475"><a href="#cb13-475" aria-hidden="true" tabindex="-1"></a><span class="fu">check_integrity</span>(</span>
+<span id="cb13-476"><a href="#cb13-476" aria-hidden="true" tabindex="-1"></a>  <span class="at">expected_df =</span> df_final_filtered, </span>
+<span id="cb13-477"><a href="#cb13-477" aria-hidden="true" tabindex="-1"></a>  <span class="at">target =</span> <span class="st">&quot;../output/distance_habitat_data.csv&quot;</span>, </span>
+<span id="cb13-478"><a href="#cb13-478" aria-hidden="true" tabindex="-1"></a>  <span class="at">mode =</span> <span class="st">&quot;csv&quot;</span></span>
+<span id="cb13-479"><a href="#cb13-479" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb13-480"><a href="#cb13-480" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-481"><a href="#cb13-481" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Checking the cleaned final data results</span></span>
+<span id="cb13-482"><a href="#cb13-482" aria-hidden="true" tabindex="-1"></a><span class="fu">check_integrity</span>(</span>
+<span id="cb13-483"><a href="#cb13-483" aria-hidden="true" tabindex="-1"></a>  <span class="at">expected_df =</span> df_final_filtered, </span>
+<span id="cb13-484"><a href="#cb13-484" aria-hidden="true" tabindex="-1"></a>  <span class="at">target =</span> <span class="st">&quot;../output/distance_data_cleaned.csv&quot;</span>, </span>
+<span id="cb13-485"><a href="#cb13-485" aria-hidden="true" tabindex="-1"></a>  <span class="at">mode =</span> <span class="st">&quot;csv&quot;</span></span>
+<span id="cb13-486"><a href="#cb13-486" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb13-487"><a href="#cb13-487" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
 </code><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal><i class="bi"></i></button></pre></div>
 </div></div></div></div></div>
 </div> <!-- /content -->

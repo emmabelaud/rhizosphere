@@ -330,7 +330,7 @@ cat("Missing frame rate :", round((1-(nrow(df_final_filtered)/nrow(df_final)))*1
 ```
 
 |  |  |  |
-|--------------------|--------------------------|--------------------------|
+|------------------------|------------------------|------------------------|
 | **Dataset Name** | **Description** | **Role in the pipeline** |
 | **`df_complete`** | Theoretical grid vs. Observed data. | Used to calculate the initial missing data rate and identify stable periods. |
 | **`df_final`** | Targeted images based on seasonal periods. | Represents the "intended" scope of the study. |
@@ -428,6 +428,13 @@ check_integrity(
 )
 
 # 3. Checking the final data results
+check_integrity(
+  expected_df = df_final_filtered, 
+  target = "../output/distance_habitat_data.csv", 
+  mode = "csv"
+)
+
+# 3. Checking the cleaned final data results
 check_integrity(
   expected_df = df_final_filtered, 
   target = "../output/distance_data_cleaned.csv", 
