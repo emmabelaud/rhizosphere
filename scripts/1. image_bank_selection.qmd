@@ -2,12 +2,15 @@
 title: "Rhizosphère - Image bank selection"
 format:
   html:
+    css: css/styles.css  
     embed-resources: true
-
+    code-tools: true
+    toc: true
+    toc-depth: 4
 execute: 
   warning: false
   message: false
-  echo: false 
+  echo: false
 ---
 
 The large volume of images available in the DIAMS database makes it impossible to process them all exhaustively. It is therefore necessary to extract a relevant subset that is representative of the conditions throughout the entire period covered, while maintaining sufficient quality in terms of data completeness. The document describes the approach taken to achieve this selection.
@@ -35,13 +38,14 @@ Only metadata related to usable images (=samples) are retained, i.e. those for w
 
 ```{r}
 df <- df_fauna %>%  
-  select(date, scanner, image_name)%>%
-  unique()%>%
+  select(date, scanner, image_name) %>%
+  unique() %>%
   mutate(date = ymd_hms(date),
     position = substr(scanner, 4, 4),
     depth = substr(scanner, 5, 6),
     orientation = substr(scanner, 8, 8),
-    presence = 1)%>% filter(position != "B")
+    presence = 1) %>% 
+  filter(position != "B")
 ```
 
 ### Hour filtering
@@ -57,10 +61,11 @@ df <- df %>%
     minute = minute(date)) %>%
   filter(minute == 0, hour %in% c(0, 12)) %>%
   select(-hour, -minute)%>%
-  mutate(hour = format(date, "%H:%M"))%>%
-  mutate(day = as.Date(date))%>%
-  group_by(date,scanner,position,depth,orientation,presence,day, hour)%>%
-  slice(1)%>% ungroup()
+  mutate(hour = format(date, "%H:%M")) %>%
+  mutate(day = as.Date(date)) %>%
+  group_by(date,scanner,position,depth,orientation,presence,day, hour) %>%
+  slice(1) %>% 
+  ungroup()
 ```
 
 ### Completion of the dataset
@@ -75,33 +80,6 @@ df_complete <- expand_grid(day = unique(df$day),
                           orientation = unique(df$orientation)) %>%
   left_join(df, by = c("day", "hour", "position", "depth", "orientation")) %>%
   mutate(presence = replace_na(presence, 0))
-```
-
-### Selecting the orientation of the scanners
-
-To reduce the volume of data, a single orientation of the scanners is selected. The choice is based on the orientation with the lowest rate of missing data, calculated for each modality.
-
-The rate of missing data is calculated according to the orientation of the scanners :
-
-```{r}
-orientation_rate <- df_complete %>%
-  group_by(orientation) %>%
-  summarise(
-    total = n(),
-    present = sum(presence),
-    missing_rate = (total - present) / total,
-    .groups = "drop")
-kableExtra::kable(orientation_rate)
-```
-
-The most comprehensive guidance option is selected :
-
-```{r}
-orientation_selection <- orientation_rate %>%
-  filter(missing_rate == min(missing_rate))%>%
-  pull(orientation)
-cat("Orientation selection :", orientation_selection)
-#df_complete <- df_complete %>% filter(orientation %in% orientation_selection)
 ```
 
 **Visualisation of filtered data :**
@@ -131,10 +109,10 @@ nb_img_day <- n_distinct(df_complete$scanner) * 2
 cat("Number of images expected per day : ", nb_img_day)
 ```
 
-We then identify the days on which at least **70% of these images are present**.
+We then identify the days on which at least **60% of these images are present**.
 
 ```{r}
-prop = 0.60
+prop = 0.65
 days_complete <- df_complete %>%
   group_by(day) %>%
   summarise(n = sum(presence), .groups = "drop") %>%
@@ -168,7 +146,7 @@ df_final <- df_complete %>%
 ```{r}
 #| echo: false
 df_final%>%
-  filter(datetime> as.Date('2024-08-25') & datetime < as.Date('2025-07-01'))%>%
+  filter(datetime> as.Date('2024-02-01') & datetime < as.Date('2025-07-01'))%>%
 ggplot(aes(x = datetime, y = scanner, color = as.factor(presence))) +
   geom_point(size = 2, alpha = 0.8) +
   scale_color_manual(
@@ -275,6 +253,7 @@ ggplot(df_final, aes(x = datetime, y = scanner, color = as.factor(presence))) +
 Creation of a copy of the image set with dates shifted by 9 days and selection of corresponding images
 
 ```{r}
+# We shift the time window back by 9 days to find the 'starting point' for each observation.
 df_reference <- df_final %>%
   filter(presence==1)%>%
   mutate(date = date - days(9)) %>%
@@ -286,21 +265,13 @@ df_reference <- df_final %>%
          hour_ref = format(date, "%H:%M"))
 ```
 
-Number of missing images
-
-```{r}
-#| echo: false
-cat("Number of missing images :", sum(is.na(df_reference$image_name)), "\n")
-cat("Missing frame rate :", round(((sum(is.na(df_reference$image_name))/nrow(df_reference)))*100, 2), "%")
-```
-
 ```{r}
 #| echo: false
 df_reference %>% 
   mutate(scanner = paste(position, depth, sep="_"))%>%
 ggplot(aes(x = date, y = scanner, color = as.factor(presence))) +
   geom_point(size = 2, alpha = 0.8) +
-  scale_color_manual(values = c("0" = "grey80", "1" = "#F4631E"), labels = c("Absence", "Presence"), name = "Image") +
+  scale_color_manual(values = c("0" = "grey80", "1" = "darkgreen"), labels = c("Absence", "Presence"), name = "Image") +
   labs(x = "Date", y = "Scanner", title = "Presence/absence of images by scanner and date") +
   scale_x_datetime(date_breaks = "1 month", date_labels = "%b %Y") +
   theme_minimal() +
@@ -311,11 +282,13 @@ ggplot(aes(x = date, y = scanner, color = as.factor(presence))) +
 Filtering images from the current dataset based on missing images from the previous dataset :
 
 ```{r}
+# We only keep 'Current' images (T0) that have a valid 'Reference' image (T-9).
+# This ensures the differential analysis (e.g., growth measurement) is possible.
 df_final_filtered <- df_final %>%
   filter(presence == 1) %>%
   mutate(day_ref = as.Date(date - days(9)),
          hour_ref = format(date - days(9), "%H:%M")) %>%
-  left_join(df_reference %>%
+  inner_join(df_reference %>%
               filter(presence == 1) %>%
               select(depth, position, orientation, day_ref, hour_ref),
             by = c("depth", "position", "orientation", "day_ref", "hour_ref"))%>%
@@ -326,8 +299,10 @@ df_final_filtered <- df_final %>%
 Total list of images to be processed :
 
 ```{r}
+# We combine the filtered 'Current' images and their 'Reference' images 
+# into a single vertical list for processing.
 df_combined <- df_reference %>%
-  mutate(scanner = paste(position, depth, sep="_"))%>%
+  mutate(scanner = paste(position, depth, orientation, sep="_"))%>%
   filter(presence == 1)%>%
   mutate(id_image = "reference")%>%
   select(scanner, date, id_image, image_name)%>%
@@ -346,6 +321,25 @@ ggplot(aes(x = date, y = scanner, color = as.factor(id_image))) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
+```{r}
+cat("--- FINAL COMPLETENESS REPORT ---\n")
+cat("Initial target images (T0):      ", nrow(df_final), "\n")
+cat("Analyzable pairs (T0 + T-9):     ", nrow(df_final_filtered), "\n")
+cat("Number of missing images :", nrow(df_final)-nrow(df_final_filtered))
+cat("Missing frame rate :", round((1-(nrow(df_final_filtered)/nrow(df_final)))*100, 2), "%")
+```
+
+|  |  |  |
+|--------------------|--------------------------|--------------------------|
+| **Dataset Name** | **Description** | **Role in the pipeline** |
+| **`df_complete`** | Theoretical grid vs. Observed data. | Used to calculate the initial missing data rate and identify stable periods. |
+| **`df_final`** | Targeted images based on seasonal periods. | Represents the "intended" scope of the study. |
+| **`df_reference`** | Set of images shifted by -9 days. | Acts as the baseline (J-9) for every observation. |
+| **`df_final_filtered`** | Images from `df_final` that passed the J-9 check. | These are the "Current" images that are actually treatable. |
+| **`df_combined`** | Union of `df_final_filtered` and their valid references. | The final list of all unique image names required from the server. |
+
+: Dataset Characterization
+
 ### Creation of the image bank
 
 ```{r}
@@ -353,49 +347,90 @@ images_bank <- paste0(unique(df_combined$image_name), ".png")
 writeLines(images_bank, "../output/image_bank.txt")
 ```
 
-##Check missing data in the final dataset used in data analysis
+### Generalized Diagnostic Function
+
 ```{r}
-# Toggle this to TRUE to run the check, or FALSE to skip it
-run_final_check <- TRUE
-
-check_data_completeness <- function(expected_df, results_path) {
-  # 1. Load the analyzed results
-  if (!file.exists(results_path)) {
-    return(message("Check skipped: Results file not found."))
+#' Check Data Consistency
+check_integrity <- function(expected_df, target, mode = "folder", file_ext = ".png", clean_regex = NULL) {
+  
+  # 1. Get the list of IDs we EXPECT
+  expected_ids <- unique(expected_df$image_name)
+  
+  # 2. Get the list of IDs we ACTUALLY HAVE
+  if (mode == "folder") {
+    if (!dir.exists(target)) stop("Directory not found: ", target)
+    actual_files <- list.files(target, pattern = paste0(file_ext, "$"))
+    # Remove extension to get the ID
+    actual_ids <- gsub(paste0(file_ext, "$"), "", actual_files)
+    # Apply cleaning regex if provided (e.g., to remove _distance_root_growth)
+    if (!is.null(clean_regex)) {
+      actual_ids <- unique(gsub(clean_regex, "", actual_ids))
+    }
+  } else if (mode == "csv") {
+    if (!file.exists(target)) stop("CSV file not found: ", target)
+    actual_data <- read.csv(target)
+    if (!"image_name" %in% colnames(actual_data)) stop("CSV must contain 'image_name' column")
+    actual_ids <- unique(actual_data$image_name)
   }
+
+  # 3. Comparison Logic
+  missing_ids <- setdiff(expected_ids, actual_ids)
+  extra_ids   <- setdiff(actual_ids, expected_ids)
   
-  results_df <- read.csv(results_path, sep = ",", na.strings = c("", "NA"))
+  # 4. Reporting
+  n_exp <- length(expected_ids)
+  n_act <- length(actual_ids)
+  coverage <- round((n_act / n_exp) * 100, 2)
   
-  # 2. Get unique image names from both datasets
-  expected_names <- unique(expected_df$image_name)
-  analyzed_names <- unique(results_df$image_name)
+  cat("\n==========================================\n")
+  cat("  INTEGRITY REPORT: ", basename(target), "\n")
+  cat("==========================================\n")
+  cat("Expected Unique IDs: ", n_exp, "\n")
+  cat("Actual Unique Found: ", n_act, "\n")
+  cat("Coverage Rate:       ", coverage, "%\n")
   
-  # 3. Identify missing images
-  missing_images <- setdiff(expected_names, analyzed_names)
-  
-  # 4. Calculate statistics
-  n_expected <- length(expected_names)
-  n_analyzed <- length(analyzed_names)
-  coverage_rate <- round((n_analyzed / n_expected) * 100, 2)
-  
-  # 5. Display Diagnosis
-  cat("\n--- COMPLETENESS CHECK ---\n")
-  cat("Expected images (df_final):", n_expected, "\n")
-  cat("Analyzed images found:     ", n_analyzed, "\n")
-  cat("Coverage rate:             ", coverage_rate, "%\n")
-  
-  if (length(missing_images) > 0) {
-    warning(length(missing_images), " images are missing from the final database!")
-    cat("First missing images:\n")
-    print(head(missing_images, 5))
+  if (length(missing_ids) > 0) {
+    cat("\nMISSING DATA (", length(missing_ids), " items):\n")
+    print(head(sort(missing_ids), 10))
   } else {
-    message("SUCCESS: All expected images are present in the analysis.")
+    cat("\nSUCCESS: No missing data.\n")
   }
+  
+  if (length(extra_ids) > 0) {
+    cat("\nEXTRA DATA (", length(extra_ids), " items found but not expected)\n")
+    cat("Named (", sort(extra_ids))
+  }
+  
+  return(invisible(missing_ids)) # Returns the list silently for further use
 }
 
-# Run the function if the toggle is TRUE
-if (run_final_check) {
-  check_data_completeness(df_final_filtered, "../output/distance_data_cleaned.csv")
-}
+#' @param expected_df The reference dataframe (e.g., df_combined or df_final_filtered)
+#' @param target Path to a directory OR path to a CSV file
+#' @param mode Either "folder" or "csv"
+#' @param file_ext If mode="folder", the extension to look for (default ".png")
+#' @param clean_regex A regex pattern to remove suffixes from filenames (optional)
+# 1. Checking the raw images folder
+check_integrity(
+  expected_df = df_combined, 
+  target = "/media/ebelaud/INTENSO/rhizosphere_image_bank/", 
+  mode = "folder", 
+  file_ext = ".png"
+)
+
+# 2. Checking the output raster folder (tif)
+raster_suffixes <- "(_distance_root_growth|_distance_root_mature|_root_growth|_root_mature)"
+check_integrity(
+  expected_df = df_final_filtered, 
+  target = "/media/ebelaud/INTENSO/output_raster", 
+  mode = "folder", 
+  file_ext = ".tif",
+  clean_regex = raster_suffixes
+)
+
+# 3. Checking the final data results
+check_integrity(
+  expected_df = df_final_filtered, 
+  target = "../output/distance_data_cleaned.csv", 
+  mode = "csv"
+)
 ```
-
