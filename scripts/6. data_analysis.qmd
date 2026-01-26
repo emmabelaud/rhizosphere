@@ -5,7 +5,8 @@ format:
     css: css/styles.css  
     embed-resources: true
     code-tools: true
-    
+    toc: true
+    toc-depth: 4
 execute: 
   warning: false
   message: false
@@ -19,6 +20,8 @@ This study investigates the spatial behavior of soil fauna in relation to root s
 ## Setup and data preparation
 
 ```{r}
+Sys.setenv(CHROMOTE_CHROME_STARTUP_TIMEOUT = 120)
+Sys.setenv(CHROMOTE_CHROME_ARGS = "--no-sandbox --disable-gpu --disable-dev-shm-usage")
 # libraries
 library(tidyverse)
 library(mgcv)
@@ -82,24 +85,30 @@ habitat_data_long <- habitat_data_raw %>%
   # filtering of extreme root density values
   filter(root_cm2_count >= quantile(root_cm2_count, 0.25, na.rm = TRUE) - 1.5 * IQR(root_cm2_count, na.rm = TRUE),root_cm2_count <= quantile(root_cm2_count, 0.25, na.rm = TRUE) + 1.5 * IQR(root_cm2_count, na.rm = TRUE)) %>%
   drop_na()
+
+# Creation of an intra-specific invertebrate abundance variable
+habitat_data_reframe <- habitat_data_long %>%
+  group_by(image_name, Predicted.class.levelup, root_type) %>%
+  mutate(abundance = sqrt(n())) %>%
+  ungroup()
+
+# reframing data ? 
+#keep average values per scanner x period
+#habitat_data_reframe <- habitat_data_long %>% group_by(scanner, period, Predicted.class.levelup, root_type) %>% reframe(obs = mean(obs), exp = mean(exp), z_score = mean(z_score), root_cm2_count = mean(root_cm2_count), abundance = mean(abundance))
 ```
 
 ## 1. The rhizosphere effect: attraction and spatial signature
 
+To quantify habitat selection, we overlaid invertebrate occurrence data onto high-resolution root distance maps, calculating the distance from each individual’s centroid detection to the nearest root. We interpreted these distances within a Resource Selection Function (RSF) framework (Calenge *et al.* 2005). To characterize habitat availability, we projected 50 random points onto the corresponding root distance map for every invertebrate occurrence. We then derived the standardized marginality index (Z-score) by calculating the deviation of the observed distance from the mean null expected distance, scaled by the expected standard deviation. This index serves as a measure of spatial marginality: negative values indicate active biological selection (attraction) of the rhizosphere, whereas positive values signify avoidance relative to a random spatial distribution.
+
 ### *Do soil fauna actively select the rhizosphere space ?*
 
-We employ a null model approach to determine whether soil fauna actively select the rhizosphere or if their proximity is a result of random distribution. By comparing observed animal-to-root distances against simulated expected distances, we calculate a standardized Z-score ($Z = \frac{obs - exp}{sd}$).
-
--   Active selection (attraction): Indicated by negative Z-scores.
-
--   Active avoidance (aepulsion): Indicated by positive Z-scores.
-
--   Statistical Validation: A Wilcoxon Test was used to determine if median Z-scores significantly deviated from zero.
+The central hypothesis of this study, which concerns the influence of roots on the spatial distribution of soil invertebrates, was first examined by testing for departures from random root-associated habitat use. Normalized marginality values were tested against zero using Wilcoxon signed-rank tests. Given the hypothesized functional specificities of organisms and root traits, these tests were conducted independently for each invertebrate taxon and root functional category.
 
 ```{r}
 #| label: global-attraction-plot
 # Statistical summary of Z-scores by Taxa and Root Type
-rhizo_results <- habitat_data_long %>%
+rhizo_results <- habitat_data_reframe %>%
   group_by(Predicted.class.levelup, root_type) %>%
   summarise(
     n = n(),
@@ -113,7 +122,7 @@ rhizo_results <- habitat_data_long %>%
 bg_zones <- tibble(xmin = c(0, -Inf),xmax = c(Inf, 0),ymin = -Inf, ymax = Inf, zone = c("Avoidance","Selection"))
 
 # Visualization of the Attraction Index
-p1 <- habitat_data_long %>%
+p1 <- habitat_data_reframe %>%
   filter(z_score >= quantile(z_score, 0.25, na.rm = TRUE) - 1.5 * IQR(z_score, na.rm = TRUE),
     z_score <= quantile(z_score, 0.25, na.rm = TRUE) + 1.5 * IQR(z_score, na.rm = TRUE)) %>%
   ggplot(aes(x = z_score, y = Predicted.class.levelup)) +
@@ -138,14 +147,14 @@ p1 + labs(title = "Rhizosphere Attraction Index",
        subtitle = "Negative Z-scores indicate active selection of the root zone")
 tiff("../output/1.zscore_distribution.tiff", width = 1500, height = 1000, res = 300)
 p1
-dev.off()
+invisible(dev.off())
 ```
 
 The analysis reveals significant, taxa-specific attraction to the root surface, particularly for Collembola and Gastropoda. The strength of this selection varies by root type, suggesting that biological drivers—such as root exudation—shape spatial clustering beyond what is expected by chance.
 
 ### *Defining the rhizosphere width*
 
-To identify the precise spatial extent of root influence, we model animal density as a function of distance using GAMs. We incorporate a geometric correction (log-area offset) to account for the increasing soil volume available at greater distances from the root. The root influence zone tipping point is defined as the distance where the first derivative of the model plateau, indicating that the root's influence on animal density has vanished.
+To delineate the precise spatial extent of root influence, we modeled invertebrate density as a function of root distance using Generalized Additive Models (GAMs) with a Negative Binomial distribution. To decouple biological selection from geometric bias – where soil volume increases quadratically with distance – a log-area offset as an exposure variable were incorporated. This effectively transformed raw counts into a density-based response. The rhizosphere width was defined as the distance where the first derivative of the spline first stabilized; specifically, where the 95% Confidence Interval of the slope included zero, indicating that animal density was no longer significantly influenced by root proximity.
 
 ```{r}
 #| label: riz-extraction
@@ -154,7 +163,7 @@ max_dist <- 10
 bin_w <- 0.1 #cm
 
 # Calculate the number of animals per distance bin and the available area.
-rhizo_decay_data <- habitat_data_long %>%
+rhizo_decay_data <- habitat_data_reframe %>%
   # Filter out distances that are too large and biased by edge effects
   filter(obs <= max_dist) %>%
   # Create bins and assign observations to the midpoint of the bin
@@ -247,7 +256,7 @@ t1
 
 save_kable(t1, "../output/2.rhizosphere_width.html")
 invisible(webshot("../output/2.rhizosphere_width.html",
-        file = "../output/2.rhizosphere_width.png", zoom = 2))
+        file = "../output/2.rhizosphere_width.png", zoom = 2,vwidth = 1200))
 ```
 
 ## 2. The geometric niche: habitat availability constraint
@@ -262,11 +271,11 @@ While attraction is a key driver, the physical presence of roots inherently cons
 #| fig-show: hide
 # Modeling the gap (Obs - Exp) as a function of root density
 mod_delta <- gam(
-    (obs - exp) ~ Predicted.class.levelup + root_type +
+    z_score ~ Predicted.class.levelup + root_type +
     s(root_cm2_count,  by = interaction(root_type, Predicted.class.levelup,  drop = TRUE), k=5) + 
     s(period, bs = "re") + 
     s(scanner, bs = "re"),
-  data = habitat_data_long, 
+  data = habitat_data_reframe, 
   family = scat(),
   method = "REML"
 )
@@ -288,7 +297,10 @@ s_tab <- as.data.frame(summary(mod_delta)$s.table) %>%
   separate(group_str, into = c("root_type", "Predicted.class.levelup"), sep = "\\.")
 
 # Augment data for plotting
-habitat_delta <- safe_augment(mod_delta, habitat_data_long, "delta")
+habitat_delta <- safe_augment(mod_delta, habitat_data_reframe, "delta")
+habitat_delta <- habitat_delta %>%
+  select(-delta.sigma)%>%
+  drop_na()
 ```
 
 ```{r}
@@ -297,13 +309,13 @@ p2 <- ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
   geom_hline(yintercept = 0, 
              color = "black", size = 0.5, alpha = 0.3) +
   # The 95% Confidence Interval Envelope
-  geom_ribbon(aes(ymin = delta.fitted - 1.96 * delta.se.fit, 
-                  ymax = delta.fitted + 1.96 * delta.se.fit), 
+  geom_ribbon(aes(ymin = delta.fitted - 2 * delta.se.fit, 
+                  ymax = delta.fitted + 2 * delta.se.fit), 
               fill = "#002651", alpha = 0.1) +
   # The Original Fitted Points: Points are colored if they represent active attraction 
   geom_point(aes(color = delta.fitted), size = 1, alpha=0.4) +
   scale_color_gradient2(low = "#b20000", mid = "#FFD93D",high = "white",   midpoint = 0) +
-  coord_cartesian(ylim = c(-2, 1))+
+  #coord_cartesian(ylim = c(-2, 1))+
   # The Rug Plot (Shows data density on the X-axis)
   geom_rug(alpha = 0.2, color = "black", #sides = "b"
            ) +
@@ -312,7 +324,7 @@ p2 <- ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
   
   facet_grid(root_type ~ Predicted.class.levelup, scales = "free") +
   # Styling
-  labs(x = "Root density scaled", y = "Obs − Exp Fitted Distance (cm)",color = "Index") +
+  labs(x = "Root density", y = "Fitted z-score ",color = "Index value") +
   theme_bw() +
   theme(panel.border = element_rect(color = "grey", fill = NA, linewidth = 0.1),
   panel.grid.minor = element_blank(),
@@ -326,7 +338,7 @@ p2 + labs(
     subtitle = "Negative values represent active biological attraction beyond spatial probability")
 tiff("../output/3.geometric_constraint.tiff", width = 2200, height = 1400, res = 300)
 p2
-dev.off()
+invisible(dev.off())
 ```
 
 Growing Roots: Biological attraction remains relatively stable across the density gradient, suggesting that high-quality growth zones (e.g., exudates) provide a signal strong enough to overcome the geometric noise of increasing root surface area.
@@ -338,20 +350,6 @@ Mature Roots: These systems exhibit a "convergence" effect where biological devi
 ### *Is root selection a mechanical consequence of high population density or a functional driver of invertebrate success ?*
 
 We tested two competing hypotheses to explain the relationship between spatial behavior and population dynamics: a mechanistic approach, which tests whether demographic processes dictate spatial behavior, and a functional approach, which tests whether the ability to locate and exploit roots leads to population growth.
-
-```{r}
-#| label: data-prep
-# Using sqrt transformation as it provided the best fit
-data_growth <- habitat_delta %>%
-  group_by(image_name, Predicted.class.levelup, root_type) %>%
-  mutate(abundance = sqrt(n())) %>%
-  ungroup() %>%
-  group_by(scanner, period, Predicted.class.levelup, root_type) %>%
-  mutate(lag1_delta_resid = lag(delta.resid, n = 1),
-    lag2_delta_resid = lag(delta.resid, n = 2))%>%
-  select(-delta.sigma)%>%
-  drop_na()
-```
 
 #### **1. Mechanistic hypothesis: Do demographic processes dictate spatial behaviour?**
 
@@ -369,7 +367,7 @@ mecanistic_model <- gam(delta.resid ~ Predicted.class.levelup + root_type +
                         family = gaussian(link = "identity"), 
                         method = "REML", 
                         select = TRUE,
-                        data = data_growth)
+                        data = habitat_delta)
 
 
 #model performance
@@ -377,10 +375,7 @@ mecanistic_model <- gam(delta.resid ~ Predicted.class.levelup + root_type +
 plot(DHARMa::simulateResiduals(mecanistic_model))
 
 #model results
-tidy(mecanistic_model) %>% 
-  filter(p.value < 0.05) %>% 
-  select(term, edf, p.value)
-#data_growth <- safe_augment(mecanistic_model, data_growth, "mech") # not working with lag
+#habitat_delta <- safe_augment(mecanistic_model, habitat_delta, "mech") 
 #gratia::draw(mecanistic_model, parametric = FALSE) 
 ```
 
@@ -398,7 +393,7 @@ functionnal_model <- gam(abundance ~ Predicted.class.levelup + root_type +
                           s(delta.resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=10) 
                          + s(scanner, bs="re")+ s(period, bs="re"),
                          Gamma(link = "log"), 
-                         data = data_growth,
+                         data = habitat_delta,
                          method = "REML", 
                          select = TRUE)
 
@@ -407,21 +402,55 @@ functionnal_model <- gam(abundance ~ Predicted.class.levelup + root_type +
 plot(DHARMa::simulateResiduals(functionnal_model))
 
 #model results
-tidy(functionnal_model) %>% 
-  filter(p.value < 0.05) %>% 
-  select(term, edf, p.value)
-#data_growth <- safe_augment(functionnal_model, data_growth, "func")
+#habitat_delta <- safe_augment(functionnal_model, habitat_delta, "func")
 #gratia::draw(functionnal_model, parametric = FALSE) 
 ```
 
 ```{r}
+tidy(mecanistic_model, parametric = FALSE) %>%
+  filter(p.value < 0.05) %>%
+  select(term, edf, statistic, p.value) %>%
+  mutate(term = str_replace(term, "s\\(abundance\\):interaction\\(Predicted.class.levelup, root_type, drop = TRUE\\)", "abundance: "),
+    term = str_replace(term, "s\\(scanner\\)", "Random Effect: Scanner"),
+    term = str_replace(term, "s\\(period\\)", "Random Effect: Period"),
+    p.value = scales::pvalue(p.value)
+  ) %>%
+  kable(
+    col.names = c("Model Component", "EDF", "F-statistic", "p-value"),
+    caption = "Mecanistic GAM Results",
+    booktabs = TRUE, 
+    digits = 3,
+    align = "lccc"
+  ) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  row_spec(0, bold = TRUE, background = "lightgrey") 
+
+tidy(functionnal_model, parametric = FALSE) %>%
+  filter(p.value < 0.05) %>%
+  select(term, edf, statistic, p.value) %>%
+  mutate(term = str_replace(term, "s\\(delta.resid\\):interaction\\(Predicted.class.levelup, root_type, drop = TRUE\\)", "selection strength: "),
+    term = str_replace(term, "s\\(scanner\\)", "Random Effect: Scanner"),
+    term = str_replace(term, "s\\(period\\)", "Random Effect: Period"),
+    p.value = scales::pvalue(p.value)
+  ) %>%
+  kable(
+    col.names = c("Model Component", "EDF", "F-statistic", "p-value"),
+    caption = "Functional GAM Results",
+    booktabs = TRUE, 
+    digits = 3,
+    align = "lccc"
+  ) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  row_spec(0, bold = TRUE, background = "lightgrey")
+
+
 summary_table <- bind_rows(
   glance(mecanistic_model) %>% mutate(model = "Mechanistic"),
   glance(functionnal_model) %>% mutate(model = "Functional")
 ) %>%
-  select(model, adj.r.squared, deviance, AIC, BIC, df, nobs)
+  select(model, adj.r.squared, deviance, df, nobs)
 
-kable(summary_table, digits = 3, col.names = c("Model", "Adj. R²", "Deviance", "AIC", "BIC", "df", "N Obs."),
+kable(summary_table, digits = 3, col.names = c("Model", "Adj. R²", "Deviance", "df", "N Obs."),
       caption = "Statistical comparison between Mechanistic and Functional models",
       booktabs = TRUE, align = "c") %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
@@ -430,92 +459,3 @@ kable(summary_table, digits = 3, col.names = c("Model", "Adj. R²", "Deviance", 
 Demographic processes (population density) do not explain spatial selection patterns ($R^2 \approx 0.008$). Conversely, biological selection significantly influences demographic processes ($R^2 \approx 0.54$).
 
 Surprisingly, our results initially appeared to contradict the "functional oasis" hypothesis. Instantaneous abundance was lower where selection was most intense, suggesting that the local carrying capacity is not influenced by the ability to exploit the rhizosphere, but rather the ability not to exploit it.
-
-#### **Could there be a phase shift between the selection behaviour of growing roots and demographic success?**
-
-We introduced temporal lags (Lag 1 and Lag 2) into our GAMs to determine if there is a phase shift between selection behavior and demographic success.
-
-Model :
-
-`gam (abundance ~ Predicted.class.levelup + root_type + s(lag1_delta_resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=10) + s(lag2_delta_resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=10) + s(delta.resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=10) + s(scanner, bs="re")+ s(period, bs="re"), Gamma(link = "log"), data = data_growth, method = "REML", select = TRUE)`
-
-```{r}
-#| label: functionnal temporal approach
-functionnal_lag_model <- gam(abundance ~ Predicted.class.levelup + root_type + 
-                          s(lag1_delta_resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=10) + 
-                          s(lag2_delta_resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=10) + 
-                          s(delta.resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=10) 
-                         + s(scanner, bs="re")+ s(period, bs="re"),
-                         Gamma(link = "log"), 
-                         data = data_growth,
-                         method = "REML", 
-                         select = TRUE)
-
-#model performance
-#gam.check(functionnal_lag_model, rep = 1000)
-plot(DHARMa::simulateResiduals(functionnal_lag_model))
-
-#model results
-#summary(functionnal_lag_model)
-#gratia::draw(functionnal_lag_model, parametric = FALSE) 
-tidy(functionnal_lag_model) %>% 
-  filter(p.value < 0.05) %>% 
-  select(term, edf, p.value)
-# smooth estimates model extraction
-sm <- smooth_estimates(functionnal_lag_model,n = 100,unconditional = TRUE,overall_uncertainty = TRUE)
-
-plot_data <- sm %>%
-  filter(str_detect(.smooth, "delta.resid")) %>%
-  mutate(
-    lag_type = case_when(
-      str_detect(.smooth, "lag1") ~ "Lag 1",
-      str_detect(.smooth, "lag2") ~ "Lag 2",
-      TRUE ~ "Lag 0"
-    ),
-    # Use coalesce to create a single x variable
-    x_val = coalesce(delta.resid, lag1_delta_resid, lag2_delta_resid)
-  ) %>%
-  # Split interaction term for faceting
-  separate(
-    `interaction(Predicted.class.levelup, root_type, drop = TRUE)`,
-    into = c("class", "root"),
-    sep = "\\."
-  )
-
-# Plot
-plot_data%>%
-mutate(lag_type = factor(lag_type, levels = c("Lag 2", "Lag 1", "Lag 0"))) %>%
-ggplot(aes(x = x_val, y = .estimate, group = lag_type)) +
-  geom_hline(yintercept = 0, linewidth = 0.5)+
-  geom_ribbon(
-    aes(
-      ymin = .estimate - .se,
-      ymax = .estimate + .se,
-      fill = lag_type
-    ),
-    alpha = 0.15
-  ) +
-  geom_line(aes(color = lag_type), linewidth = 1.5) +
-  facet_grid(root ~ class, scales = "free_y") +
-  labs(
-    title = "Comparison of selection effects across temporal lags",
-    x = "Selection intensity (delta.resid)",
-    y = "Partial effect on abundance (log scale)",
-    color = "Lag",
-    fill = "Lag"
-  ) +
-  scale_fill_manual(values = c("#FAB12F", "#FA812F", "#DD0303")) +
-  scale_color_manual(values = c("#FAB12F", "#FA812F", "#DD0303")) +
-  theme_bw() +
-  theme(
-    panel.border = element_rect(color = "grey", fill = NA, linewidth = 0.1),
-    panel.grid.minor = element_blank(),
-    strip.background = element_rect(fill = "white", color = NA),
-    strip.text = element_text(size = 12, face = "bold"),
-    axis.title.x = element_text(size = 12),
-    legend.position = "bottom",
-    plot.title = element_text(size = 12)
-  )
-```
-
-By decoupling spatial behavior from population dynamics, we demonstrate that rhizosphere selection seems to be a functional trait, but its benefits are subject to a time lag. Maximum abundance does not coincide with immediate active selection, but rather with the memory of selection. This suggests a "legacy effect" where the energetic gains from foraging in high-quality root zones (e.g., during peak exudation) require a specific period to manifest as a measurable increase in population density through reproduction or recruitment ?
