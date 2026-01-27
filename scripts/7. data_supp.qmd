@@ -4,7 +4,10 @@ format:
   html:
     css: css/styles.css  
     embed-resources: true
+    theme: cosmo
     code-tools: true
+    toc: true
+    toc-depth: 4
     
 execute: 
   warning: false
@@ -93,7 +96,8 @@ habitat_data_long <- habitat_data_long %>%
 ## 1. Raw data exploration
 
 ```{r}
-#| label: summary-table
+#| label: tbl-summary-raw-data
+#| tbl-cap: "Summary of taxonomic occurrences and sampling effort"
 taxa_summary <- habitat_data_long %>%
   group_by(Taxon = Predicted.class.levelup, root_type) %>%
   summarise(
@@ -102,9 +106,8 @@ taxa_summary <- habitat_data_long %>%
     `Mean occurrence per image` = round(n() / n_distinct(image_name), 2)
   ) %>% select(-root_type) %>% unique() 
 
-# 3. Create the Kable table
 taxa_summary %>%
-  kbl(caption = "Table 1: Summary of taxonomic occurrences and sampling effort.",
+  kbl(
       booktabs = TRUE, align = "lrrr") %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
                  position = "left") %>%
@@ -113,20 +116,21 @@ taxa_summary %>%
 ```
 
 ```{r}
-#| label: enhanced-effort-matrix
+#| label: fig-enhanced-effort-matrix
 #| fig-height: 6
 #| fig-width: 10
+#| fig-cap: "Spatio-temporal sampling effort : \ntotal images analyzed per scanner and period"
 
 
 # 1. Define the Period-to-Date Mapping (Reference from your code)
 period_labels <- c(
-  "1" = "Mar 2024\n(Spring)",
-  "2" = "May 2024\n(Spring)",
-  "3" = "Jul 2024\n(Summer)",
-  "4" = "Sep 2024\n(Autumn)",
-  "5" = "Dec 2024\n(Winter)",
-  "6" = "Feb 2025\n(Winter)",
-  "7" = "Apr 2025\n(Spring)"
+  "1" = "Mar 2024",
+  "2" = "May 2024",
+  "3" = "Jul 2024",
+  "4" = "Sep 2024",
+  "5" = "Dec 2024",
+  "6" = "Feb 2025",
+  "7" = "Apr 2025"
 )
 
 # 2. Prepare the data
@@ -142,9 +146,7 @@ ggplot(effort_summary, aes(x = period, y = scanner, fill = n_images)) +
   scale_fill_gradient(low = "white", high = "#FA812F", name = "Image count") +
   scale_x_discrete(labels = period_labels) +
   theme_minimal() +
-  labs(
-    title = "Spatio-temporal sampling effort : \ntotal images analyzed per scanner and period",
-    x = "Temporal replicates (sampling period)",
+  labs(x = "Temporal replicates (sampling period)",
     y = "Spatial replicates (Scanner ID)"
   ) +
   guides(fill="none")+
@@ -155,9 +157,11 @@ ggplot(effort_summary, aes(x = period, y = scanner, fill = n_images)) +
 ```
 
 ```{r}
-#| label: metric-variability
+#| label: fig-metric-variability
 #| fig-height: 10
 #| fig-width: 12
+#| fig-cap: "Replicate-level variability of studied metrics"
+#| fig-subcap: "Rows: Biological and Environmental metrics | Columns: Spatial replicates (Scanners)"
 
 metrics_long <- habitat_data_long %>%
   select(scanner, period, z_score, root_cm2_count, abundance) %>%
@@ -169,10 +173,7 @@ ggplot(metrics_long, aes(x = period, y = value, fill = period)) +
   facet_grid(metric ~ scanner, scales = "free_y") +
   scale_fill_brewer(palette = "Spectral",guide = guide_legend(nrow = 1)) +
   theme_minimal() +
-  labs(
-    title = "Replicate-level variability of studied metrics",
-    subtitle = "Rows: Biological and Environmental metrics | Columns: Spatial replicates (Scanners)",
-    x = "Temporal Period",
+  labs(x = "Temporal Period",
     y = "Measured Value",
     fill = "Period"
   ) +
@@ -209,7 +210,7 @@ By dividing the deviation by the $SD_{expected}$, we effectively "flatten" the s
 #| label: fig-normalization-comparison
 #| fig-height: 6
 #| fig-width: 10
-
+#| fig-cap: "Normalization comparison"
 
 # Raw Difference
 p1_sd <- ggplot(habitat_data_long, aes(x = sd, y = obs - exp)) +
@@ -240,6 +241,144 @@ The "Normalized Signal" plot demonstrates that the $z$-score remains stable acro
 
 Les résultats semblent mauvais donc à voir si on conserve.
 
+```{r}
+#| label: riz-extraction
+#| eval: false
+#| include: false
+### 1. Data Binning and Geometric Area Correction 
+max_dist <- 10
+bin_w <- 0.1 #cm
+
+# Calculate the number of animals per distance bin and the available area.
+rhizo_decay_data <- habitat_data_long %>%
+  # Filter out distances that are too large and biased by edge effects
+  filter(obs <= max_dist) %>%
+  # Create bins and assign observations to the midpoint of the bin
+  mutate(dist_bin = floor(obs / bin_w) * bin_w + bin_w/2) %>%
+  group_by(dist_bin, Predicted.class.levelup, root_type) %>%
+  summarise(n_animals = n(), .groups = "drop") %>%
+  # GEOMETRIC CORRECTION: Calculate the area of the concentric ring (annulus).
+  # As distance (r) increases, the sampled area increases proportionally.
+  # Area = pi * (R_outer^2 - R_inner^2)
+  mutate(area = pi * ((dist_bin + bin_w/2)^2 - (dist_bin - bin_w/2)^2)) %>%
+  filter(n_animals >= quantile(n_animals, 0.25, na.rm = TRUE) - 1.5 * IQR(n_animals, na.rm = TRUE),n_animals <= quantile(n_animals, 0.25, na.rm = TRUE) + 1.5 * IQR(n_animals, na.rm = TRUE))
+
+### 2. GAM Fitting and Derivative Analysis
+extract_gam_stats <- function(df) {
+  # Minimum data threshold to ensure model stability
+  if (n_distinct(df$dist_bin) < 5 || sum(df$n_animals) < 10) return(NULL)
+  
+  # MODEL: Generalized Additive Model (GAM)
+  # Family = quasipoisson
+  # Offset = log(area): Treats the sampled area as an 'exposure' variable. 
+  # This converts the raw count model into a density model (count/area) 
+  # without the statistical pitfalls of using ratios directly.
+  model <- tryCatch({
+    gam(n_animals ~ s(dist_bin, k = 5), 
+        offset = log(area), 
+        data = df, 
+        family = nb())
+  }, error = function(e) return(NULL))
+  
+  if (is.null(model)) return(NULL)
+  
+  # RHIZOSPHERE IDENTIFICATION 
+  # We use the first derivative (slope) of the model to find where 
+  # the influence of the root stops (the plateau).
+  eval_pts <- data.frame(dist_bin = seq(0.05, 10, length.out = 200))
+  derivs <- derivatives(model, data = eval_pts, type = "forward")
+  
+  # STATISTICAL TIPPING POINT:
+  # The RIZ is defined as the distance where the 95% Confidence Interval 
+  # of the derivative first includes zero. At this point, the density 
+  # slope is no longer significantly different from a horizontal line.
+  riz_val <- derivs %>%
+    mutate(lower = .derivative - 1.96 * .se,
+           upper = .derivative + 1.96 * .se) %>%
+    # Filter out the first 0.5cm to avoid noise near the root surface
+    filter(dist_bin > 0.5, (lower < 0 & upper > 0) | lower > 0) %>% 
+    slice(1) %>% 
+    pull(dist_bin)
+  
+  #MODEL VALIDATION TESTS
+  res <- simulateResiduals(model, n = 250, plot = FALSE)
+  test_ks <- testUniformity(res, plot = FALSE)$p.value             # Distribution test
+  test_disp <- testDispersion(res, plot = FALSE)$p.value # Surdispersion test
+  test_out <- testOutliers(res, plot = FALSE)$p.value   # Outliers tests
+  
+  # RESULTS SUMMARY 
+  tibble(
+    edf = summary(model)$edf,             # Complexity of the curve (1 = linear)
+    p_val = summary(model)$s.pv,          # Significance of the spatial pattern
+    dev_expl = summary(model)$dev.expl * 100, # % of variance explained by root distance
+    riz_cm = if(length(riz_val) > 0) riz_val else NA_real_, # Distance of influence
+    n_total = sum(df$n_animals),           # Total count for the group
+    check_ks = test_ks,     # If < 0.05, distribution shape problem
+    check_disp = test_disp, # If < 0.05, overdispersion (justifies the quasi-Poisson distribution)
+    check_out = test_out   # If < 0.05, too many outliers
+  )
+}
+
+####
+# 2. Fonction de prédiction REVISITÉE
+get_predictions <- function(df_sub, grid_sub) {
+  # Filtre de sécurité
+  if (nrow(df_sub) < 5 || sum(df_sub$n_animals) < 10) return(NULL)
+  
+  # Fit du modèle
+  m <- tryCatch({
+    gam(n_animals ~ s(dist_bin, k = 5), offset = log(area), 
+        data = df_sub, family = nb())
+  }, error = function(e) return(NULL))
+  
+  if (is.null(m)) return(NULL)
+  
+  # Calcul des prédictions sur la grille fournie
+  preds <- predict(m, newdata = grid_sub, type = "response", se.fit = TRUE)
+  
+  # CONSTRUCTION DU DATAFRAME DE SORTIE
+  # On crée un nouveau df avec les vecteurs de même taille (100)
+  data.frame(
+    Predicted.class.levelup = grid_sub$Predicted.class.levelup,
+    root_type = grid_sub$root_type,
+    dist_bin = grid_sub$dist_bin,
+    fit = as.numeric(preds$fit),
+    se = as.numeric(preds$se.fit)
+  ) %>%
+    mutate(
+      upper = fit + (1.96 * se),
+      lower = pmax(0, fit - (1.96 * se))
+    )
+}
+
+# 3. Application (la structure reste la même)
+all_preds <- rhizo_decay_data %>%
+  group_by(Predicted.class.levelup, root_type) %>%
+  group_split() %>%
+  map_df(~{
+    group_info <- .x[1, c("Predicted.class.levelup", "root_type")]
+    grid_sub <- eval_grid %>% 
+      filter(Predicted.class.levelup == group_info$Predicted.class.levelup, 
+             root_type == group_info$root_type)
+    get_predictions(.x, grid_sub)
+  })
+
+# 4. Graphique
+ggplot() +
+  geom_point(data = rhizo_decay_data, 
+             aes(x = dist_bin, y = n_animals / area), 
+             alpha = 0.3, size = 0.8, color = "grey40") +
+  geom_ribbon(data = all_preds, 
+              aes(x = dist_bin, ymin = lower, ymax = upper), 
+              fill = "steelblue", alpha = 0.2) +
+  geom_line(data = all_preds, 
+            aes(x = dist_bin, y = fit), 
+            color = "steelblue", size = 0.7) +
+  facet_grid(Predicted.class.levelup ~ root_type, scales = "free_y") +
+  theme_bw() +
+  labs(x = "Distance (cm)", y = "Densité (ind/cm²)")
+```
+
 ## 2. The geometric niche: habitat availability constraint
 
 ### *Are fauna close to the root by choice (attraction) or necessity (habitat saturation) ?*
@@ -257,6 +396,8 @@ Visualizing the Aggregation Logic The visualization below confirms that aggregat
 #| label: fig-aggregation-logic
 #| fig-width: 10
 #| fig-height: 4
+#| fig-cap: "Structural impact of data aggregation"
+#| fig-subcap: "Grey: individual observations | Orange: Replicate averages (aggregated)"
 
 # Aggregation
 # We collapse individual observations to representative means per habitat state
@@ -278,31 +419,52 @@ p_var <- ggplot() +
   theme_minimal() + labs(title = "B. Predictor Density Distribution", x = expression(Root~Density~(cm^2)), y="Probability Density")
 
 # Combine plots
-p_agg + p_var +  
-  plot_annotation(title = "Structural impact of data aggregation",
-    subtitle = "Grey: individual observations | Orange: Replicate averages (aggregated)")
+p_agg + p_var
 ```
 
 This "vertical striping" seen in Figure A indicates that many fauna occurence share identical root density values, creating pseudoreplication that can lead to Type I errors (false significance). As shown in Figure B, the aggregation process preserves the overall experimental gradient of root density while smoothing over-represented low-density zones.
 
-Model Sensitivity Analysis We implemented two Generalized Additive Models (GAMs) using the scat() family (scaled $t$-distribution) to account for heavy-tailed residuals often found in ecological count-derived data.
-
 ```{r}
-#| label: model-performance-summary
-
+#| label: fct-model-fit
 # Function to run the standard GAM setup
-run_constraint_gam <- function(df, k_val) {
+run_constraint_gam <- function(df, k_val, fam_type) {
   gam(z_score ~ Predicted.class.levelup + root_type +
       s(root_cm2_count, by = interaction(root_type, Predicted.class.levelup, drop = TRUE), k = k_val) + 
       s(period, bs = "re") + 
       s(scanner, bs = "re"),
-    data = df, family = scat(), method = "REML")
+    data = df, family = fam_type, method = "REML")
 }
 
 # Run both models
-mod_individual <- run_constraint_gam(habitat_data_long, k_val = 5)
-mod_aggregated <- run_constraint_gam(habitat_data_reframe, k_val = 4)
+mod_individual <- run_constraint_gam(habitat_data_long, k_val = 5, fam_type = scat())
+mod_aggregated <- run_constraint_gam(habitat_data_reframe, k_val = 4, fam_type = scat())
+```
 
+```{r}
+#| label: fig-diagnostic-family-check
+#| fig-width: 10
+#| fig-height: 5
+
+# Fit a Gaussian version of the same model for comparison
+mod_gaussian <- run_constraint_gam(habitat_data_reframe, fam_type = gaussian(), k_val = 5)
+
+# Visual check: Compare QQ plots
+par(mfrow = c(1, 2))
+qq.gam(mod_gaussian, main = "Gaussian (Normal) Residuals", pch = 16, col = alpha("black", 0.5))
+qq.gam(mod_aggregated, main = "scat (Heavy-tailed) Residuals", pch = 16, col = alpha("orange", 0.5))
+
+# Compare AIC
+print(AIC(mod_gaussian, mod_aggregated))
+```
+
+The selection of the scaled $t$-family (scat()) was necessitated by the distributional characteristics of the $z$-scores. Preliminary modeling using a standard Gaussian distribution showed significant deviation in the residual QQ-plots, with pronounced "heavy tails" indicating that extreme observations (outliers) were more frequent than predicted by a Normal distribution.
+
+Model Sensitivity Analysis We implemented two Generalized Additive Models (GAMs) using the scat() family (scaled $t$-distribution) to account for heavy-tailed residuals often found in ecological count-derived data.
+
+```{r}
+#| label: tbl-model-performance-summary
+#| tbl-cap: "Sensitivity analysis - comparison of individual vs. aggregated modeling approaches"
+#| 
 model_perf <- list(Individual = mod_individual, Aggregated = mod_aggregated) %>%
   map_df(~{
     sum_mod <- summary(.x)
@@ -319,24 +481,25 @@ model_perf <- list(Individual = mod_individual, Aggregated = mod_aggregated) %>%
     )
   }, .id = "Approach")
 
-# 2. Render the unified table
+# Render the unified table
 model_perf %>%
   kbl(
-    caption = "Sensitivity Analysis - Comparison of Individual vs. Aggregated Modeling Approaches.",
     digits = 3,
     booktabs = TRUE,
     col.names = c("Model Approach", "AIC", "Dev. Expl. (%)", "Adj. R²", "Mean EDF", "Significant Smooths", "N")
   ) %>%
   kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
-  row_spec(2, bold = TRUE, background = "#FFF4E5") # Highlight the chosen aggregated approach
+  row_spec(2, bold = TRUE, background = "#FFF4E5")
 ```
 
 The individual model identifies 6 out of 8 smooth terms as significant. However, this significance is deceptive; with a deviance explained of only 2.6%, the model has almost no predictive power. The low p-values are likely a mathematical byproduct of the large sample size and high spatial autocorrelation (pseudoreplication). The aggregated model, by collapsing the data to replicate means, eliminate individual-level stochasticity. While the "significance" vanishes (0/8 terms), the deviance explained increases nearly four-fold (9.4%). Furthermore, the Average EDF (Effective Degrees of Freedom) drops from \~3.28 to \~1.66, indicating that the model is no longer trying to "wiggle" through noise, but is instead finding a simpler, more stable (though non-significant) trend.
 
 ```{r}
-#| label: final-constraint-plot
+#| label: fig-final-constraint-plot
 #| fig-width: 10
 #| fig-height: 8
+#| fig-cap: "Final sensitivity model: aggregated response"
+#| fig-subcap: "Negative z-scores (red) indicate active biological attraction persisting through habitat saturation"
 
 # (Using your existing augmentation logic on the aggregated model)
 habitat_delta <- safe_augment(mod_aggregated, habitat_data_reframe, "delta")
@@ -347,14 +510,151 @@ p_final <- ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
                   ymax = delta.fitted + 2 * delta.se.fit), 
               fill = "#002651", alpha = 0.1) +
   geom_point(aes(color = delta.fitted), size = 2, alpha = 0.6) +
-  scale_color_gradient2(low = "#b20000", mid = "#FFD93D", high = "grey90", midpoint = 0) +
+  scale_color_gradient2(low = "#b20000", mid = "#FFD93D", high = "grey90", midpoint = 0, guide = "none") +
   facet_grid(root_type ~ Predicted.class.levelup, scales = "free") +
   theme_bw() +
-  labs(title = "Final Sensitivity Model: Aggregated Response",
-       subtitle = "Negative z-scores (red) indicate active biological attraction persisting through habitat saturation",
-       x = "Root Density (cm/cm²)", y = "Fitted Selection Intensity (z-score)")
+  labs(x = "Root Density (cm/cm²)", y = "Fitted Selection Intensity (z-score)")
 
 p_final
 ```
 
-The aggregated model provides a more conservative and honest estimate of the "Geometric Niche." It demonstrates that, once individual-level noise is removed, there is no evidence for a strong non-linear selection effect across the root density gradient.
+The aggregated model provides a more conservative and honest estimate of the "geometric niche." It demonstrates that, once individual-level noise is removed, there is no evidence for a strong non-linear selection effect across the root density gradient.
+
+## 3. The selection - demography link : trait or by-product ?
+
+```{r}
+#| label: mecanistic-approach
+#| echo: true
+mecanistic_model <- gam(delta.resid ~ Predicted.class.levelup + root_type + s(abundance, by =interaction(Predicted.class.levelup, root_type, drop=TRUE), k=10) + s(scanner, bs="re")+ s(period, bs="re"), family = gaussian(link = "identity"),  method = "REML", select = TRUE, data = habitat_delta)
+```
+
+```{r}
+#| label: functionnal approach
+#| echo: true
+functionnal_model <- gam(abundance ~ Predicted.class.levelup + root_type + s(delta.resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=5) + s(scanner, bs="re")+ s(period, bs="re"), Gamma(link = "log"), method = "REML", select = TRUE, data = habitat_delta)
+```
+
+### Model diagnostic
+
+```{r}
+#| label: fig-diagnostics
+#| fig-cap: "Diagnostic plots for (A) Mechanistic and (B) Functional models. Left panels show QQ-plots of residuals; right panels show residuals vs. predicted values."
+#| fig-subcap: ["Mechanistic Model", "Functional Model"]
+#| layout-nrow: 2
+
+# Panel A: Mechanistic
+plot(simulateResiduals(mecanistic_model))
+
+# Panel B: Functional
+plot(simulateResiduals(functionnal_model))
+```
+
+-   **Mechanistic Model (Gaussian):** The QQ plot shows residuals following the theoretical 1:1 line with no significant deviation in dispersion or outliers ($p = 0.864$). The "Residual vs. Predicted" plot shows a uniform distribution, indicating that the constant variance assumption of the Gaussian family is met.
+
+-   **Functional Model (Gamma):** While the "Residual vs. Predicted" plot detects some quantile deviations (red curves), the combined adjusted quantile test remains non-significant ($p = 0.208$). The QQ plot confirms a strong fit for the Gamma distribution, and the Outlier test ($p = 0.057$) indicates that the model is resilient to extreme values in abundance data.
+
+```{r}
+#| label: tbl-diagnostic-summary
+#| tbl-cap: "Summary of model specifications and convergence diagnostics."
+
+# Enhanced function to include DHARMa results if possible
+get_model_diag_pro <- function(model, label, dharma_p) {
+  sum_mod <- summary(model)
+  
+  data.frame(
+    Hypothesis = label,
+    Family = paste0(sum_mod$family$family, "(", sum_mod$family$link, ")"),
+    `Dev. Expl.` = paste0(round(sum_mod$dev.expl * 100, 1), "%"),
+    `Dispersion` = round(sum_mod$scale, 3),
+    `DHARMa p` = dharma_p,
+    `Status` = ifelse(model$converged, "Converged", "Failed")
+  )
+}
+
+# Creating the table (Replace 0.86 and 0.21 with your actual DHARMa p-values)
+diagnostic_report <- bind_rows(
+  get_model_diag_pro(mecanistic_model, "Mechanistic", 0.864),
+  get_model_diag_pro(functionnal_model, "Functional", 0.208)
+)
+
+diagnostic_report %>%
+  kable(col.names = c("Hypothesis", "Family (Link)", "Deviance Explained", "Scale/Dispersion", "DHARMa (p)", "Convergence"),
+        booktabs = TRUE, align = "lccccc") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
+  row_spec(0, bold = TRUE, background = "#F2F2F2")
+```
+
+The validation phase confirms that the models are structurally sound and appropriate for ecological inference:
+
+-   **Assumption Adherence:** The **Functional model** (Deviance Explained: **34%**) effectively captures the variance in abundance using the Gamma distribution. The DHARMa p-value ($p = 0.208$) confirms that the log-link successfully handled the mean-variance scaling without overdispersion.
+
+-   **Linearity vs. Complexity:** In the **Mechanistic model**, the very low deviance explained (**2.1%**) and EDF values near 0 indicate a nearly flat or strictly linear relationship. This suggests that population density is a poor predictor of selection strength, effectively ruling out a strong density-dependent "mechanical" driver.
+
+-   **Basis Dimension (**$k$): The `gam.check` results confirm we did not "choke" the models. In the Functional model, $EDF < k'$, proving the smoothers had sufficient flexibility. In the Mechanistic model, the low $k$-index is an artifact of the lack of signal (linearity) rather than a lack of basis functions.
+
+> **Conclusion:** We accept both models for final interpretation. The **Functional approach** provides a strong explanatory framework for success, while the **Mechanistic approach** serves as a robust "null-effect" test for density-dependence.
+
+### Models results
+
+```{r}
+#| label: marginal-r2-calculation
+# Final Synthesis Function
+get_pub_table <- function(mech_mod, func_mod) {
+  extract_stats <- function(mod, label) {
+    # Full deviance
+    total_d2 <- summary(mod)$dev.expl
+    
+    # Null model (Random effects + Fixed intercepts only)
+    # Using the update logic we built earlier
+    null_mod <- update(mod, . ~ Predicted.class.levelup + root_type + 
+                         s(scanner, bs='re') + s(period, bs='re'))
+    random_d2 <- summary(null_mod)$dev.expl
+    
+    data.frame(
+      Hypothesis = label,
+      Family = family(mod)$family,
+      Total_r2 = scales::percent(total_d2, accuracy = 0.1),
+      Random_effect_r2 = scales::percent(random_d2, accuracy = 0.1),
+      Marginal_r2 = scales::percent(total_d2 - random_d2, accuracy = 0.1)
+    )
+  }
+  
+  bind_rows(
+    extract_stats(mech_mod, "Mechanistic"),
+    extract_stats(func_mod, "Functional")
+  )
+}
+```
+
+```{r}
+#| label: tbl-unified-results
+#| tbl-cap: "Final Synthesis of Model Performance and Deviance Partitioning"
+
+# 1. Generate the deviance partitioning metrics
+final_metrics <- get_pub_table(mecanistic_model, functionnal_model)
+
+# 2. Extract global fit stats using glance (AIC, Adj.R2)
+global_stats <- bind_rows(
+  glance(mecanistic_model) %>% mutate(Hypothesis = "Mechanistic"),
+  glance(functionnal_model) %>% mutate(Hypothesis = "Functional")
+) %>% 
+  select(Hypothesis, adj.r.squared, AIC)
+
+# 3. Join them into one final table
+unified_table <- final_metrics %>%
+  left_join(global_stats, by = "Hypothesis") %>%
+  select(Hypothesis, Family, Total_r2, Marginal_r2, Random_effect_r2, adj.r.squared, AIC)
+
+# 4. Render with kableExtra
+unified_table %>%
+  kable(
+    col.names = c("Hypothesis", "Family", "Total D²", "Marginal D² (Fixed)", "Random D²", "Adj. R²", "AIC"),
+    digits = 3,
+    booktabs = TRUE, 
+    align = "lcccccc"
+  ) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  add_header_above(c(" " = 2, "Deviance Explained (D²)" = 3, "Fit Metrics" = 2)) %>%
+  column_spec(4, bold = TRUE) # Emphasize the biological signal
+```
+
