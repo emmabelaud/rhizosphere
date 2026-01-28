@@ -4,7 +4,6 @@ format:
   html:
     css: css/styles.css  
     embed-resources: true
-    theme: cosmo
     code-tools: true
     toc: true
     toc-depth: 4
@@ -97,7 +96,7 @@ habitat_data_long <- habitat_data_long %>%
 
 ```{r}
 #| label: tbl-summary-raw-data
-#| tbl-cap: "Summary of taxonomic occurrences and sampling effort"
+#| tbl-cap: "Summary of invertebrates occurrences and sampling effort"
 taxa_summary <- habitat_data_long %>%
   group_by(Taxon = Predicted.class.levelup, root_type) %>%
   summarise(
@@ -117,8 +116,8 @@ taxa_summary %>%
 
 ```{r}
 #| label: fig-enhanced-effort-matrix
-#| fig-height: 6
-#| fig-width: 10
+#| fig-height: 4
+#| fig-width: 7
 #| fig-cap: "Spatio-temporal sampling effort : \ntotal images analyzed per scanner and period"
 
 
@@ -158,8 +157,8 @@ ggplot(effort_summary, aes(x = period, y = scanner, fill = n_images)) +
 
 ```{r}
 #| label: fig-metric-variability
-#| fig-height: 10
-#| fig-width: 12
+#| fig-height: 6
+#| fig-width: 8
 #| fig-cap: "Replicate-level variability of studied metrics"
 #| fig-subcap: "Rows: Biological and Environmental metrics | Columns: Spatial replicates (Scanners)"
 
@@ -188,23 +187,17 @@ ggplot(metrics_long, aes(x = period, y = value, fill = period)) +
 
 ## 1. The rhizosphere effect: attraction and spatial signature
 
-### *Do soil fauna actively select the rhizosphere space ?*
-
-#### Why use Z-scores instead of simple differences?
+### **Why use Z-scores instead of simple differences?**
 
 To evaluate whether soil fauna actively select the rhizosphere, we must distinguish between biological attraction and spatial chance. We utilized a standardized selection index ($z$-score) calculated as:
 
 $$z = \frac{Observed - Expected}{SD_{expected}}$$
 
-While a simple arithmetic difference ($Observed - Expected$) might seem intuitive, it is statistically flawed for comparing different habitats due to **scaling bias**.
+A simple arithmetic difference ($Observed - Expected$) is statistically flawed for comparing different habitats due to scaling bias. The "randomness" of an animal's position is dictated by the underlying geometry complexity of the habitat, captured by the integrated spatial sd ($SD_{expected}$). If we rely on unnormalized differences, we encounter two major issues:
 
-The "randomness" of an animal's position is dictated by the underlying geometry of the habitat. This complexity is captured by the **Integrated Spatial SD** ($SD_{expected}$). If we rely on unnormalized differences, we encounter two major issues:
+-   Scale sensitivity: A 1cm deviation is a massive biological signal in a dense, low-sd root system, but merely "statistical noise" in a sparse, high-sd environment.
 
--   **Scale Sensitivity:** A 1cm deviation is a massive biological signal in a dense, low-SD root system, but merely "statistical noise" in a sparse, high-SD environment.
-
--   **Heteroscedasticity:** As shown in the "Unnormalized Signal" plot, the variance of the raw difference expands as spatial uncertainty increases. This "fan shape" indicates that the metric's reliability is inconsistent across the dataset.
-
-By dividing the deviation by the $SD_{expected}$, we effectively "flatten" the spatial noise. The $z$-score normalization ensures that the 'attraction' metric is relative to the **local spatial probability**.
+-   Heteroscedasticity: As shown in the following "unnormalized signal" plot, the variance of the raw difference expands as spatial uncertainty increases. This fan shape indicates that the metric's reliability is inconsistent across the dataset.
 
 ```{r}
 #| label: fig-normalization-comparison
@@ -235,9 +228,9 @@ p2_sd <- ggplot(habitat_data_long, aes(x = sd, y = z_score)) +
 p1_sd + p2_sd
 ```
 
-The "Normalized Signal" plot demonstrates that the $z$-score remains stable across the entire range of spatial complexities. This process filters out stochastic noise, ensuring that a high negative $z$-score represents a consistent biological "pull" toward the root, regardless of whether the habitat is simple or complex.
+The "normalized signal" plot shows that the $z$-score remains more stable across the whole range of spatial complexities. This process tend to filters out stochastic noise and ensuring that a high negative $z$-score consistently indicates a biological "pull" toward the root, regardless of the complexity of the habitat.
 
-### *Defining the rhizosphere width*
+### **Defining the rhizosphere width**
 
 Les résultats semblent mauvais donc à voir si on conserve.
 
@@ -381,16 +374,16 @@ ggplot() +
 
 ## 2. The geometric niche: habitat availability constraint
 
-### *Are fauna close to the root by choice (attraction) or necessity (habitat saturation) ?*
+### **Context**
 
-To isolate **active biological selection** from this **geometric necessity**, we analyzed the $z$-score across a gradient of root density.
+While attraction is a key driver, the physical presence of roots inherently constrains the available habitat. As root density increases, bulk soil volume diminishes, mathematically increasing the probability of fauna-root encounters regardless of biological preference. To isolate the true "biological signal," we wanted to model the $z$-score across a root density gradient.
 
-In our experimental setup, root density within a specific scanner over a 7-day period is often stable. This creates a statistical challenge: if we model every individual occurrence, we artificially inflate the degrees of freedom for a predictor (root density) that isn't actually varying at that scale. To resolve this and provide a conservative estimate of the "Geometric Niche" effect, we performed a sensitivity analysis by comparing two modeling approaches:
+### **Addressing spatial-temporal autocorrelation**
 
--   **Individual-Level Model:** High resolution, but potentially biased by intra-replicate autocorrelation.
--   **Aggregated-Level Model:** Collapsing data to **Scanner × Period × Taxon x Root type** means. This ensures that each data point represents a unique "habitat density state."
+In our experimental setup, root density within a specific scanner over a 7-day period is often stable (see @fig-metric-variability). This creates a statistical challenge: if we model every individual occurrence, we treat each one as an independent "choice." However, occurrences within the same scanner and period are constrained by the same physical architecture. To avoid artificially inflating our degrees of freedom and providing a biased estimate of the "geometric niche," we performed a sensitivity analysis :
 
-Visualizing the Aggregation Logic The visualization below confirms that aggregation preserves the experimental gradient while "flattening" the overrepresented low-density zones created by individual-level clusters.
+-   **Individual-Level Model:** High resolution, but susceptible to Type I errors due to high intra-replicate autocorrelation.
+-   **Aggregated-Level Model:** data is collapsed to Scanner × Period × Taxon × Root type means. This ensures that each data point represents a unique "habitat state," forcing the model to look for trends across experimental units rather than individual points.
 
 ```{r}
 #| label: fig-aggregation-logic
@@ -422,7 +415,11 @@ p_var <- ggplot() +
 p_agg + p_var
 ```
 
-This "vertical striping" seen in Figure A indicates that many fauna occurence share identical root density values, creating pseudoreplication that can lead to Type I errors (false significance). As shown in Figure B, the aggregation process preserves the overall experimental gradient of root density while smoothing over-represented low-density zones.
+The "vertical striping" in @fig-aggregation-logic (A) highlights the pseudo-replication issue: many fauna share identical root density values. The aggregation process in @fig-aggregation-logic (B) preserves the experimental gradient while smoothing over-represented low-density zones, providing a more balanced predictor distribution.
+
+### **Distribution choice: Why `scat()`?**
+
+The selection of the scaled $t$-family (`scat()`) was necessitated by the "heavy-tailed" nature of $z$-scores in this system. Ecological data often contain extreme behaviors—individuals that are exceptionally attracted to or repelled by a resource - that create outliers beyond what a standard Gaussian (Normal) distribution can accommodate. As shown in the comparative QQ-plots, the `scat` family accounts for these heavy tails, preventing extreme values from disproportionately pulling the fitted splines.
 
 ```{r}
 #| label: fct-model-fit
@@ -457,9 +454,9 @@ qq.gam(mod_aggregated, main = "scat (Heavy-tailed) Residuals", pch = 16, col = a
 print(AIC(mod_gaussian, mod_aggregated))
 ```
 
-The selection of the scaled $t$-family (scat()) was necessitated by the distributional characteristics of the $z$-scores. Preliminary modeling using a standard Gaussian distribution showed significant deviation in the residual QQ-plots, with pronounced "heavy tails" indicating that extreme observations (outliers) were more frequent than predicted by a Normal distribution.
+### **Results models comparison**
 
-Model Sensitivity Analysis We implemented two Generalized Additive Models (GAMs) using the scat() family (scaled $t$-distribution) to account for heavy-tailed residuals often found in ecological count-derived data.
+We implemented two Generalized Additive Models (GAMs) using the scat() family (scaled $t$-distribution) : individual vs aggregated model.
 
 ```{r}
 #| label: tbl-model-performance-summary
@@ -492,35 +489,68 @@ model_perf %>%
   row_spec(2, bold = TRUE, background = "#FFF4E5")
 ```
 
-The individual model identifies 6 out of 8 smooth terms as significant. However, this significance is deceptive; with a deviance explained of only 2.6%, the model has almost no predictive power. The low p-values are likely a mathematical byproduct of the large sample size and high spatial autocorrelation (pseudoreplication). The aggregated model, by collapsing the data to replicate means, eliminate individual-level stochasticity. While the "significance" vanishes (0/8 terms), the deviance explained increases nearly four-fold (9.4%). Furthermore, the Average EDF (Effective Degrees of Freedom) drops from \~3.28 to \~1.66, indicating that the model is no longer trying to "wiggle" through noise, but is instead finding a simpler, more stable (though non-significant) trend.
+The individual model identifies 6 out of 8 smooth terms as significant. However, this significance is deceptive; with a deviance explained of only 2.6%, the model has almost no predictive power. The low p-values are likely a mathematical byproduct of the large sample size and high spatial autocorrelation (pseudo replication). The aggregated model, by collapsing the data to replicate means, eliminate individual-level stochasticity. While the "significance" vanishes (0/8 terms), the deviance explained increases nearly four-fold (9.4%). Furthermore, the average EDF (Effective Degrees of Freedom) drops from \~3.28 to \~1.66, indicating that the model is no longer trying to "wiggle" through noise, but is instead finding a simpler, more stable (though non-significant) trend.
+
+### **Conclusion about the "geometric niche"**
 
 ```{r}
 #| label: fig-final-constraint-plot
-#| fig-width: 10
-#| fig-height: 8
-#| fig-cap: "Final sensitivity model: aggregated response"
+#| fig-width: 8
+#| fig-height: 6
+#| fig-cap: "Final model results: aggregated response"
 #| fig-subcap: "Negative z-scores (red) indicate active biological attraction persisting through habitat saturation"
+# Extract significance for plot annotation
+s_tab <- as.data.frame(summary(mod_aggregated)$s.table) %>%
+  tibble::rownames_to_column("smooth") %>%
+  filter(grepl("root_cm2_count", smooth)) %>%
+  mutate(
+    p_label = cut(`p-value`, 
+                  breaks = c(-Inf, 0.001, 0.01, 0.05, Inf), 
+                  labels = c("***", "**", "*", "ns")),
+    group_str = gsub("s\\(root_cm2_count\\):interaction\\(root_type, Predicted.class.levelup, drop = TRUE\\)", "", smooth)
+  ) %>%
+  separate(group_str, into = c("root_type", "Predicted.class.levelup"), sep = "\\.")
+
 
 # (Using your existing augmentation logic on the aggregated model)
 habitat_delta <- safe_augment(mod_aggregated, habitat_data_reframe, "delta")
 
 p_final <- ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
-  geom_hline(yintercept = 0, color = "black", size = 0.5, alpha = 0.3) +
+  geom_hline(yintercept = 0, 
+             color = "black", size = 0.5, alpha = 0.3) +
+  # The 95% Confidence Interval Envelope
   geom_ribbon(aes(ymin = delta.fitted - 2 * delta.se.fit, 
                   ymax = delta.fitted + 2 * delta.se.fit), 
               fill = "#002651", alpha = 0.1) +
-  geom_point(aes(color = delta.fitted), size = 2, alpha = 0.6) +
-  scale_color_gradient2(low = "#b20000", mid = "#FFD93D", high = "grey90", midpoint = 0, guide = "none") +
+  # The Original Fitted Points: Points are colored if they represent active attraction 
+  geom_point(aes(color = delta.fitted), size = 1.5) +
+  scale_color_gradient2(low = "#b20000", mid = "#FFD93D",high = "grey80", midpoint = 0, guide = "none") +
+  # The Rug Plot (Shows data density on the X-axis)
+  geom_rug(alpha = 0.2, color = "black", #sides = "b"
+           ) +
+  # Significance Annotations
+  geom_text(data = s_tab, aes(x = Inf, y = -Inf, label = paste("Significance:", p_label)),hjust = 1.5, vjust = -3, inherit.aes = FALSE, size=3,fontface = "bold") +
+  
   facet_grid(root_type ~ Predicted.class.levelup, scales = "free") +
+  # Styling
+  labs(x = "Surface root density", y = "Fitted z-score ") +
   theme_bw() +
-  labs(x = "Root Density (cm/cm²)", y = "Fitted Selection Intensity (z-score)")
+  theme(panel.border = element_rect(color = "grey", fill = NA, linewidth = 0.1),
+  panel.grid.minor = element_blank(),
+  strip.background = element_rect(fill = "white", color = NA),
+  strip.text = element_text(size = 12),
+  axis.title.x = element_text(size = 12))
 
 p_final
 ```
 
-The aggregated model provides a more conservative and honest estimate of the "geometric niche." It demonstrates that, once individual-level noise is removed, there is no evidence for a strong non-linear selection effect across the root density gradient.
+> **Conclusion:** The aggregated model provides a more conservative and honest estimate of the "geometric niche." It demonstrates that, once individual-level noise is removed, there is no evidence for a strong non-linear selection effect across the root density gradient. Root selection is not merely a byproduct of encountering more roots in dense areas, but a consistent biological signal.
 
 ## 3. The selection - demography link : trait or by-product ?
+
+### **Context**
+
+We tested two competing hypotheses to explain the relationship between spatial behavior and population dynamics: a mechanistic approach, which tests whether demographic processes dictate spatial behavior, and a functional approach, which tests whether the ability to locate and exploit roots leads to population growth.
 
 ```{r}
 #| label: mecanistic-approach
@@ -534,7 +564,9 @@ mecanistic_model <- gam(delta.resid ~ Predicted.class.levelup + root_type + s(ab
 functionnal_model <- gam(abundance ~ Predicted.class.levelup + root_type + s(delta.resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=5) + s(scanner, bs="re")+ s(period, bs="re"), Gamma(link = "log"), method = "REML", select = TRUE, data = habitat_delta)
 ```
 
-### Model diagnostic
+### **Models diagnostic**
+
+Prior to inference, we performed a multi-step validation to ensure our model structures were appropriate for the data types.
 
 ```{r}
 #| label: fig-diagnostics
@@ -548,10 +580,6 @@ plot(simulateResiduals(mecanistic_model))
 # Panel B: Functional
 plot(simulateResiduals(functionnal_model))
 ```
-
--   **Mechanistic Model (Gaussian):** The QQ plot shows residuals following the theoretical 1:1 line with no significant deviation in dispersion or outliers ($p = 0.864$). The "Residual vs. Predicted" plot shows a uniform distribution, indicating that the constant variance assumption of the Gaussian family is met.
-
--   **Functional Model (Gamma):** While the "Residual vs. Predicted" plot detects some quantile deviations (red curves), the combined adjusted quantile test remains non-significant ($p = 0.208$). The QQ plot confirms a strong fit for the Gamma distribution, and the Outlier test ($p = 0.057$) indicates that the model is resilient to extreme values in abundance data.
 
 ```{r}
 #| label: tbl-diagnostic-summary
@@ -584,21 +612,31 @@ diagnostic_report %>%
   row_spec(0, bold = TRUE, background = "#F2F2F2")
 ```
 
-The validation phase confirms that the models are structurally sound and appropriate for ecological inference:
+As detailed in @tbl-diagnostic-summary, the validation phase confirms that the models are structurally sound :
 
--   **Assumption Adherence:** The **Functional model** (Deviance Explained: **34%**) effectively captures the variance in abundance using the Gamma distribution. The DHARMa p-value ($p = 0.208$) confirms that the log-link successfully handled the mean-variance scaling without overdispersion.
+-   The functional model (deviance explained: 34%) effectively captures the variance in abundance using the Gamma distribution. The DHARMa p-value ($p = 0.208$) confirms that the log-link successfully handled the mean-variance scaling without over dispersion.
 
--   **Linearity vs. Complexity:** In the **Mechanistic model**, the very low deviance explained (**2.1%**) and EDF values near 0 indicate a nearly flat or strictly linear relationship. This suggests that population density is a poor predictor of selection strength, effectively ruling out a strong density-dependent "mechanical" driver.
+-   In the mechanistic model, the very low deviance explained (2.1%) and EDF values near 0 indicate a nearly flat or strictly linear relationship. This suggests that population density is a poor predictor of selection strength, effectively ruling out a strong density-dependent "mechanical" driver.
 
--   **Basis Dimension (**$k$): The `gam.check` results confirm we did not "choke" the models. In the Functional model, $EDF < k'$, proving the smoothers had sufficient flexibility. In the Mechanistic model, the low $k$-index is an artifact of the lack of signal (linearity) rather than a lack of basis functions.
+-   The `gam.check` results confirm we did not "choke" the models. In the functional model, $EDF < k'$, proving the smoothers had sufficient flexibility. In the mechanistic model, the low $k$-index is an artifact of the lack of signal (linearity) rather than a lack of basis functions.
 
-> **Conclusion:** We accept both models for final interpretation. The **Functional approach** provides a strong explanatory framework for success, while the **Mechanistic approach** serves as a robust "null-effect" test for density-dependence.
+> **Conclusion:** We accept both models for final interpretation. The functional approach provides a strong explanatory framework for success, while the mechanistic approach serves as a robust "null-effect" test for density-dependence.
 
-### Models results
+### **Models results**
+
+"To isolate the biological signal from environmental noise, we partitioned the deviance explained into **marginal** $D^2$ (fixed biological predictors) and **random** $D^2$ (stochastic variation from scanner and period). We prioritized $D^2$ over the traditional $R^2$ as it provides a more accurate measure of fit for the likelihood-based framework of GAMs.
+
+We compared our full models against "null" (random effects only) models to isolate three specific components of variation:
+
+1.  Total deviance ($D^2_{Total}$): The proportion of null deviance explained by the full model specification, including fixed factors, smooth terms, and random effects.
+
+2.  Random effect deviance ($D^2_{Random}$): Extracted from a reduced model containing only the random intercepts (`scanner` and `period`) and parametric fixed factors (`Predicted.class.levelup` and `root_type`). It must represent the background variation inherent to the experimental design.
+
+3.  Marginal deviance ($D^2_{Marginal}$): Calculated as $D^2_{Total} - D^2_{Random}$. This value represents the specific explanatory power gained by including the smoothed biological predictors.
 
 ```{r}
 #| label: marginal-r2-calculation
-# Final Synthesis Function
+# Final synthesis function
 get_pub_table <- function(mech_mod, func_mod) {
   extract_stats <- function(mod, label) {
     # Full deviance
@@ -613,9 +651,9 @@ get_pub_table <- function(mech_mod, func_mod) {
     data.frame(
       Hypothesis = label,
       Family = family(mod)$family,
-      Total_r2 = scales::percent(total_d2, accuracy = 0.1),
-      Random_effect_r2 = scales::percent(random_d2, accuracy = 0.1),
-      Marginal_r2 = scales::percent(total_d2 - random_d2, accuracy = 0.1)
+      Total_D2 = scales::percent(total_d2, accuracy = 0.1),
+      Random_effect_D2 = scales::percent(random_d2, accuracy = 0.1),
+      Marginal_D2 = scales::percent(total_d2 - random_d2, accuracy = 0.1)
     )
   }
   
@@ -628,7 +666,7 @@ get_pub_table <- function(mech_mod, func_mod) {
 
 ```{r}
 #| label: tbl-unified-results
-#| tbl-cap: "Final Synthesis of Model Performance and Deviance Partitioning"
+#| tbl-cap: "Final synthesis of model performance and deviance partitioning"
 
 # 1. Generate the deviance partitioning metrics
 final_metrics <- get_pub_table(mecanistic_model, functionnal_model)
@@ -643,7 +681,7 @@ global_stats <- bind_rows(
 # 3. Join them into one final table
 unified_table <- final_metrics %>%
   left_join(global_stats, by = "Hypothesis") %>%
-  select(Hypothesis, Family, Total_r2, Marginal_r2, Random_effect_r2, adj.r.squared, AIC)
+  select(Hypothesis, Family, Total_D2, Marginal_D2, Random_effect_D2, adj.r.squared, AIC)
 
 # 4. Render with kableExtra
 unified_table %>%
@@ -654,7 +692,8 @@ unified_table %>%
     align = "lcccccc"
   ) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
-  add_header_above(c(" " = 2, "Deviance Explained (D²)" = 3, "Fit Metrics" = 2)) %>%
-  column_spec(4, bold = TRUE) # Emphasize the biological signal
+  add_header_above(c(" " = 2, "Deviance explained (D²)" = 3, "Fit metrics" = 2)) %>%
+  column_spec(4, bold = TRUE)
 ```
 
+> **Conclusion:** We accept both models for final interpretation. The functional approach provides a strong explanatory framework for success, while the mechanistic approach serves as a robust "null-effect" test for density.
