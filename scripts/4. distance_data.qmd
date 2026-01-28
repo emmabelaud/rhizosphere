@@ -97,7 +97,10 @@ for (i in seq_along(image_names_to_process)) {
     str_detect(basename(tif_files), paste(selected_vars, collapse = "|"))
   ]
 
-  if (length(env_files) == 0) return(NULL)
+  if (length(env_files) == 0) {
+      message(" No files found for ", image_name)
+      next 
+    }
 
   env_rasters <- rast(env_files)
   names(env_rasters) <- basename(env_files) |>
@@ -108,7 +111,10 @@ for (i in seq_along(image_names_to_process)) {
   loc_img <- loc_data %>%
     filter(image_name == !!image_name)
 
-  if (nrow(loc_img) == 0) return(NULL)
+    if (nrow(loc_img) == 0) {
+      message(" No invertebrates occurrences found for ", image_name)
+      next 
+    }
 
   n_rows <- nrow(env_rasters)
   loc_img <- loc_img %>%
@@ -176,12 +182,29 @@ close(pb)
 
 # Merge & export
 
-observed_table <- bind_rows(observed_list) %>%
-  rename_with(~ paste0(.x, "_obs"), starts_with("distance"))
+if (length(observed_list) > 0) {
+  observed_table <- bind_rows(observed_list) %>%
+    rename_with(
+      .fn = ~ paste0(.x, "_obs"), 
+      .cols = any_of(names(.)[grepl("^distance", names(.))])
+    )
+} else {
+  observed_table <- NULL
+  message("Warning: observed_list is empty. No data to process.")
+}
 
-availability_table <- bind_rows(expected_list) %>%
-  rename_with(~ paste0(.x, "_exp"), starts_with("distance"))
+if (length(expected_list) > 0) {
+  availability_table <- bind_rows(expected_list) %>%
+    rename_with(
+      .fn = ~ paste0(.x, "_exp"), 
+      .cols = any_of(names(.)[grepl("^distance", names(.))])
+    )
+} else {
+  availability_table <- NULL
+  message("Warning: observed_list is empty. No data to process.")
+}
 
+if (!is.null(observed_table) && !is.null(availability_table)) {
 final_table <- observed_table %>%
   left_join(
     availability_table,
@@ -190,4 +213,5 @@ final_table <- observed_table %>%
 
 write.csv(final_table, output_file, row.names = FALSE)
 writeLines(failed_images, "../data/failed_images.txt")
+}
 ```
