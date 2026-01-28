@@ -278,7 +278,7 @@ t1 <- rhizo_stats_table %>%
   collapse_rows(columns = 1:2, valign = "top") 
 t1 
 
-invisible(save_kable(t1, file = "../output/2.rhizosphere_width.png", zoom = 3,  expand = 15))
+invisible(save_kable(t1, file = "../output/2.rhizosphere_width.png", zoom = 4,  expand = 30))
 ```
 
 ## 2. The geometric niche: habitat availability constraint
@@ -461,7 +461,6 @@ unified_table <- final_metrics %>%
   select(Hypothesis, Family, Total_D2, Marginal_D2, Random_effect_D2, adj.r.squared, AIC)
 
 # 4. Render 
-#| label: tbl-model-comparison
 t2 <- unified_table %>%
   mutate(
     # Hypothesis and Marginal D2 get the primary thematic bolding
@@ -481,15 +480,16 @@ t2 <- unified_table %>%
   row_spec(0:nrow(unified_table), background = "white") %>%
   # Header consistency with Table 1
   row_spec(0, bold = TRUE, background = "#f2f2f2") %>%
-  add_header_above(c(" " = 2, "Deviance Partitioning (D²)" = 3, "Fit Statistics" = 2), bold = TRUE) %>%
+  add_header_above(c(" " = 2, "Deviance Partitioning (D²)" = 3, "Fit Statistics" = 2), bold = TRUE, 
+                   background = "white") %>%
   # Column highlighting (Column 4 is Marginal D2)
   column_spec(1, width = "150px") %>%
   column_spec(4, background = "#f9f9f9")
 
 t2
 
-invisible(save_kable(t2, file = "../output/4.deviance_partitioning.png", zoom = 2, 
-           expand = 15))
+invisible(save_kable(t2, file = "../output/4.deviance_partitioning.png", zoom = 4, 
+           expand = 30))
 ```
 
 > Statistical comparison via deviance partitioning (@tbl-demographic-results) strongly supports the Functional Hypothesis. While the Mechanistic model explained a negligible fraction of the variance (Marginal $D^2 = 2.0\%$), the Functional model accounted for $34.0\%$ of total deviance, with biological selection specifically explaining $11.1\%$. This indicates that for key soil taxa, the ability to locate and exploit root resources is a primary driver of population dynamics rather than a secondary consequence of crowding.
