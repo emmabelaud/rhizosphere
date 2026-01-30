@@ -351,9 +351,6 @@ p2 <-ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
   scale_color_gradient2(low = "#5b0000", mid = "#e50000", high = "#f9cccc", 
                         midpoint = 0, guide = "none") +
   
-  # Rug: Moved to bottom only for a cleaner look
-  geom_rug(alpha = 0.1, color = "grey20", sides = "b") +
-  
   # Significance: Better placement and size
   geom_text(data = s_tab, aes(x = Inf, y = -Inf, label = p_label),
             hjust = 1.5, vjust = -1.5, inherit.aes = FALSE, 
@@ -363,7 +360,7 @@ p2 <-ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
   
   # Labels: Scientific naming
   labs(x = expression(Root~Density~(cm^{2}*~count)), 
-       y = "Standardized Selection Index (z-score)") +
+       y = "Fitted standardized selection index (z-score)") +
   theme_minimal(base_size = 12) +
   theme(
     panel.grid.minor = element_blank(),
@@ -385,26 +382,26 @@ invisible(dev.off())
 
 ### *Is root selection a mechanical consequence of high population density or a functional driver of invertebrate success ?*
 
-We tested two competing hypotheses to explain the relationship between spatial behavior and population dynamics: a mechanistic approach, which tests whether demographic processes dictate spatial behavior, and a functional approach, which tests whether the ability to locate and exploit roots leads to population growth.
+We tested two competing hypotheses to explain the relationship between spatial behavior and population dynamics: a density-driven approach, which tests whether demographic processes dictate spatial behavior, and a performance-based approach, which tests whether the ability to locate and exploit roots leads to population growth.
 
-#### **1. Mechanistic hypothesis: Do demographic processes dictate spatial behaviour?**
+#### **1. Density-driven hypothesis: Do demographic processes dictate spatial behaviour?**
 
 *"The intensity of root selection is a behavioural response constrained by population density (density dependence)."*
 
 ```{r}
-#| label: mecanistic-approach
+#| label: density_driven-approach
 #| echo: true
-mecanistic_model <- gam(delta.resid ~ Predicted.class.levelup + root_type + s(abundance, by =interaction(Predicted.class.levelup, root_type, drop=TRUE), k=10) + s(scanner, bs="re")+ s(period, bs="re"), family = gaussian(link = "identity"),  method = "REML", select = TRUE, data = habitat_delta)
+density_driven_model <- gam(delta.resid ~ Predicted.class.levelup + root_type + s(abundance, by =interaction(Predicted.class.levelup, root_type, drop=TRUE), k=10) + s(scanner, bs="re")+ s(period, bs="re"), family = gaussian(link = "identity"),  method = "REML", select = TRUE, data = habitat_delta)
 ```
 
-#### **2. Functional approach : Does an organism's ability to locate and exploit the root result in an increase in its population?**
+#### **2. Performance-based approach : Does an organism's ability to locate and exploit the root result in an increase in its population?**
 
 *As an "oasis" of resources (exudates, associated microflora, moisture), the root is not just a place where they happen to be, but a driver of their population dynamics. If a taxon is able to effectively 'select' roots (for mucus, exudates or microhabitats), it gains access to more energy, which promotes its reproduction and therefore its overall abundance.*
 
 ```{r}
-#| label: functionnal approach
+#| label: performance_based approach
 #| echo: true
-functionnal_model <- gam(abundance ~ Predicted.class.levelup + root_type + s(delta.resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=5) + s(scanner, bs="re")+ s(period, bs="re"), Gamma(link = "log"), method = "REML", select = TRUE, data = habitat_delta)
+performance_based_model <- gam(abundance ~ Predicted.class.levelup + root_type + s(delta.resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=5) + s(scanner, bs="re")+ s(period, bs="re"), Gamma(link = "log"), method = "REML", select = TRUE, data = habitat_delta)
 ```
 
 #### Models results comparison
@@ -435,8 +432,8 @@ get_pub_table <- function(mech_mod, func_mod) {
   }
   
   bind_rows(
-    extract_stats(mech_mod, "Mechanistic"),
-    extract_stats(func_mod, "Functional")
+    extract_stats(mech_mod, "Density-driven"),
+    extract_stats(func_mod, "Performance-based")
   )
 }
 ```
@@ -446,12 +443,12 @@ get_pub_table <- function(mech_mod, func_mod) {
 #| tbl-cap: "Performance and Deviance Partitioning of Competing Hypotheses"
 
 # 1. Generate the deviance partitioning metrics
-final_metrics <- get_pub_table(mecanistic_model, functionnal_model)
+final_metrics <- get_pub_table(density_driven_model, performance_based_model)
 
 # 2. Extract global fit stats using glance (AIC, Adj.R2)
 global_stats <- bind_rows(
-  glance(mecanistic_model) %>% mutate(Hypothesis = "Mechanistic"),
-  glance(functionnal_model) %>% mutate(Hypothesis = "Functional")
+  glance(density_driven_model) %>% mutate(Hypothesis = "Density-driven"),
+  glance(performance_based_model) %>% mutate(Hypothesis = "Performance-based")
 ) %>% 
   select(Hypothesis, adj.r.squared, AIC)
 
@@ -465,8 +462,7 @@ t2 <- unified_table %>%
   mutate(
     # Hypothesis and Marginal D2 get the primary thematic bolding
     Hypothesis = cell_spec(Hypothesis, bold = TRUE),
-    Marginal_D2 = cell_spec(Marginal_D2, bold = TRUE, 
-                            color = ifelse(grepl("Functional", Hypothesis), "#D7261E", "black"))
+    Marginal_D2 = cell_spec(Marginal_D2, bold = TRUE)
   ) %>%
   kable(
     format = "html",
@@ -480,8 +476,7 @@ t2 <- unified_table %>%
   row_spec(0:nrow(unified_table), background = "white") %>%
   # Header consistency with Table 1
   row_spec(0, bold = TRUE, background = "#f2f2f2") %>%
-  add_header_above(c(" " = 2, "Deviance Partitioning (D²)" = 3, "Fit Statistics" = 2), bold = TRUE, 
-                   background = "white") %>%
+  add_header_above(c(" " = 2, "Deviance Partitioning (D²)" = 3, "Fit Statistics" = 2), bold = TRUE,  background = "white") %>%
   # Column highlighting (Column 4 is Marginal D2)
   column_spec(1, width = "150px") %>%
   column_spec(4, background = "#f9f9f9")
@@ -492,17 +487,17 @@ invisible(save_kable(t2, file = "../output/4.deviance_partitioning.png", zoom = 
            expand = 30))
 ```
 
-> Statistical comparison via deviance partitioning (@tbl-demographic-results) strongly supports the Functional Hypothesis. While the Mechanistic model explained a negligible fraction of the variance (Marginal $D^2 = 2.0\%$), the Functional model accounted for $34.0\%$ of total deviance, with biological selection specifically explaining $11.1\%$. This indicates that for key soil taxa, the ability to locate and exploit root resources is a primary driver of population dynamics rather than a secondary consequence of crowding.
+> Statistical comparison via deviance partitioning (@tbl-demographic-results) strongly supports the performance-based hypothesis. While the density-driven model explained a negligible fraction of the variance (Marginal $D^2 = 2.0\%$), the perfomance-based model accounted for $34.0\%$ of total deviance, with biological selection specifically explaining $11.1\%$. This indicates that for key soil taxa, the ability to locate and exploit root resources is a primary driver of population dynamics rather than a secondary consequence of crowding.
 
-#### Functional drivers of invertebrate success
+#### Performance-based drivers of invertebrate success
 
 ```{r}
-#| label: fig-functional-results
+#| label: fig-performance-based-results
 #| fig-cap: "Demographic response to root selection intensity"
 #| fig-width: 8
 #| fig-height: 6
 
-preds <- as.data.frame(predict(functionnal_model, newdata = habitat_delta, se.fit = TRUE))
+preds <- as.data.frame(predict(performance_based_model, newdata = habitat_delta, se.fit = TRUE))
 habitat_results <- habitat_delta %>%
   mutate(
     fitted_abundance = exp(preds$fit),
@@ -510,7 +505,7 @@ habitat_results <- habitat_delta %>%
     upper_ci = exp(preds$fit + 2 * preds$se.fit)
   )
 
-s_tab <- as.data.frame(summary(functionnal_model)$s.table) %>%
+s_tab <- as.data.frame(summary(performance_based_model)$s.table) %>%
   tibble::rownames_to_column("smooth") %>%
   filter(grepl("delta.resid", smooth)) %>%
   mutate(
@@ -535,8 +530,6 @@ p3 <- ggplot(habitat_results, aes(x = delta.resid, y = fitted_abundance)) +
   scale_color_gradient2(low = "#5b0000", mid = "#e50000", high = "#f9cccc", 
                         midpoint = 0, guide = "none") +
   
-  geom_rug(alpha = 0.1, color = "grey20", sides = "b") +
-  
   # Contextual annotations for the X-axis
   annotate("text", x = -1.5, y = Inf, label = "Attraction ←", 
            vjust = 2, size = 2.5, color = "grey40", fontface = "italic") +
@@ -549,8 +542,8 @@ p3 <- ggplot(habitat_results, aes(x = delta.resid, y = fitted_abundance)) +
   
   facet_grid(root_type ~ Predicted.class.levelup, scales = "free_y") +
   
-  labs(x = "Selection Intensity (Residual z-score)", 
-       y = "Predicted Population Abundance") +
+  labs(x = "Selection intensity (residual z-score)", 
+       y = "Fitted population abundance") +
   theme_minimal(base_size = 12) +
   theme(
     panel.grid.minor = element_blank(),
@@ -566,4 +559,4 @@ p3
 invisible(dev.off())
 ```
 
-> The back-transformed partial effects of the functional model (@fig-functional-results) visualize how specific taxa benefit from rhizosphere exploitation. Collembola exhibit the most pronounced functional link ($p < 0.01$); their predicted abundance increases exponentially as selection intensity for roots increases (indicated by more negative $z$-scores). In contrast, Acari and Gastropoda display largely neutral responses ($ns$). While these organisms are found within the rhizosphere, their population densities do not scale predictably with selection intensity, suggesting that their demographic success may be limited by other factors or that they occupy the root zone as transient habitat rather than a primary energy source.
+> The back-transformed partial effects of the performance-based model (@fig-performance-based-results) visualize how specific taxa benefit from rhizosphere exploitation. Collembola exhibit the most pronounced functional link ($p < 0.01$); their predicted abundance increases exponentially as selection intensity for roots increases (indicated by more negative $z$-scores). In contrast, Acari and Gastropoda display largely neutral responses ($ns$). While these organisms are found within the rhizosphere, their population densities do not scale predictably with selection intensity, suggesting that their demographic success may be limited by other factors or that they occupy the root zone as transient habitat rather than a primary energy source.

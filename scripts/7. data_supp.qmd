@@ -495,10 +495,11 @@ The individual model identifies 6 out of 8 smooth terms as significant. However,
 
 ```{r}
 #| label: fig-final-constraint-plot
+#| fig-cap: "Biological selection vs. geometric constraint"
+#| fig-subcap: "Negative values represent active biological attraction beyond spatial probability"
 #| fig-width: 8
 #| fig-height: 6
-#| fig-cap: "Final model results: aggregated response"
-#| fig-subcap: "Negative z-scores (red) indicate active biological attraction persisting through habitat saturation"
+
 # Extract significance for plot annotation
 s_tab <- as.data.frame(summary(mod_aggregated)$s.table) %>%
   tibble::rownames_to_column("smooth") %>%
@@ -511,37 +512,49 @@ s_tab <- as.data.frame(summary(mod_aggregated)$s.table) %>%
   ) %>%
   separate(group_str, into = c("root_type", "Predicted.class.levelup"), sep = "\\.")
 
-
-# (Using your existing augmentation logic on the aggregated model)
+# Augment data for plotting
 habitat_delta <- safe_augment(mod_aggregated, habitat_data_reframe, "delta")
+habitat_delta <- habitat_delta %>%
+  select(-delta.sigma)%>%
+  drop_na()
 
-p_final <- ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
-  geom_hline(yintercept = 0, 
-             color = "black", size = 0.5, alpha = 0.3) +
-  # The 95% Confidence Interval Envelope
+
+p2 <-ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
+  # Zero line as a baseline for "No Selection"
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey40", size = 0.5) +
+  
+  # Confidence Interval: Smoother transparency
   geom_ribbon(aes(ymin = delta.fitted - 2 * delta.se.fit, 
                   ymax = delta.fitted + 2 * delta.se.fit), 
-              fill = "#002651", alpha = 0.1) +
-  # The Original Fitted Points: Points are colored if they represent active attraction 
-  geom_point(aes(color = delta.fitted), size = 1.5) +
-  scale_color_gradient2(low = "#b20000", mid = "#FFD93D",high = "grey80", midpoint = 0, guide = "none") +
-  # The Rug Plot (Shows data density on the X-axis)
-  geom_rug(alpha = 0.2, color = "black", #sides = "b"
-           ) +
-  # Significance Annotations
-  geom_text(data = s_tab, aes(x = Inf, y = -Inf, label = paste("Significance:", p_label)),hjust = 1.5, vjust = -3, inherit.aes = FALSE, size=3,fontface = "bold") +
+              fill = "#002651", alpha = 0.15) +
   
-  facet_grid(root_type ~ Predicted.class.levelup, scales = "free") +
-  # Styling
-  labs(x = "Surface root density", y = "Fitted z-score ") +
-  theme_bw() +
-  theme(panel.border = element_rect(color = "grey", fill = NA, linewidth = 0.1),
-  panel.grid.minor = element_blank(),
-  strip.background = element_rect(fill = "white", color = NA),
-  strip.text = element_text(size = 12),
-  axis.title.x = element_text(size = 12))
+  # Points: Reduced alpha to manage overlap in dense regions
+  geom_point(aes(color = delta.fitted), size = 1.8, alpha = 0.6) +
+  
+  # Scale: Red = Strong Attraction (Biological Signal)
+  scale_color_gradient2(low = "#5b0000", mid = "#e50000", high = "#f9cccc", 
+                        midpoint = 0, guide = "none") +
+  
+  # Significance: Better placement and size
+  geom_text(data = s_tab, aes(x = Inf, y = -Inf, label = p_label),
+            hjust = 1.5, vjust = -1.5, inherit.aes = FALSE, 
+            size = 3.5, fontface = "bold.italic", color = "black") +
+  
+  facet_grid(root_type ~ Predicted.class.levelup, scales = "free_x") +
+  
+  # Labels: Scientific naming
+  labs(x = expression(Root~Density~(cm^{2}*~count)), 
+       y = "Fitted standardized selection index (z-score)") +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(color = "grey80", fill = NA),
+    strip.background = element_rect(fill = "#f7f7f7", color = NA),
+    strip.text = element_text(face = "bold"),
+    axis.title = element_text(face = "plain")
+  )
 
-p_final
+p2
 ```
 
 > **Conclusion:** The aggregated model provides a more conservative and honest estimate of the "geometric niche." It demonstrates that, once individual-level noise is removed, there is no evidence for a strong non-linear selection effect across the root density gradient. Root selection is not merely a byproduct of encountering more roots in dense areas, but a consistent biological signal.
@@ -550,18 +563,18 @@ p_final
 
 ### **Context**
 
-We tested two competing hypotheses to explain the relationship between spatial behavior and population dynamics: a mechanistic approach, which tests whether demographic processes dictate spatial behavior, and a functional approach, which tests whether the ability to locate and exploit roots leads to population growth.
+We tested two competing hypotheses to explain the relationship between spatial behavior and population dynamics: a density-driven approach, which tests whether demographic processes dictate spatial behavior, and a performance-based approach, which tests whether the ability to locate and exploit roots leads to population growth.
 
 ```{r}
-#| label: mecanistic-approach
+#| label: density_driven-approach
 #| echo: true
-mecanistic_model <- gam(delta.resid ~ Predicted.class.levelup + root_type + s(abundance, by =interaction(Predicted.class.levelup, root_type, drop=TRUE), k=10) + s(scanner, bs="re")+ s(period, bs="re"), family = gaussian(link = "identity"),  method = "REML", select = TRUE, data = habitat_delta)
+density_driven_model <- gam(delta.resid ~ Predicted.class.levelup + root_type + s(abundance, by =interaction(Predicted.class.levelup, root_type, drop=TRUE), k=10) + s(scanner, bs="re")+ s(period, bs="re"), family = gaussian(link = "identity"),  method = "REML", select = TRUE, data = habitat_delta)
 ```
 
 ```{r}
-#| label: functionnal approach
+#| label: performance_based approach
 #| echo: true
-functionnal_model <- gam(abundance ~ Predicted.class.levelup + root_type + s(delta.resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=5) + s(scanner, bs="re")+ s(period, bs="re"), Gamma(link = "log"), method = "REML", select = TRUE, data = habitat_delta)
+performance_based_model <- gam(abundance ~ Predicted.class.levelup + root_type + s(delta.resid, by = interaction(Predicted.class.levelup, root_type, drop = TRUE), k=5) + s(scanner, bs="re")+ s(period, bs="re"), Gamma(link = "log"), method = "REML", select = TRUE, data = habitat_delta)
 ```
 
 ### **Models diagnostic**
@@ -570,15 +583,15 @@ Prior to inference, we performed a multi-step validation to ensure our model str
 
 ```{r}
 #| label: fig-diagnostics
-#| fig-cap: "Diagnostic plots for (A) Mechanistic and (B) Functional models. Left panels show QQ-plots of residuals; right panels show residuals vs. predicted values."
-#| fig-subcap: ["Mechanistic Model", "Functional Model"]
+#| fig-cap: "Diagnostic plots for (A) density-driven and (B) performance-based models. Left panels show QQ-plots of residuals; right panels show residuals vs. predicted values."
+#| fig-subcap: ["Density-driven Model", "Performance-based Model"]
 #| layout-nrow: 2
 
-# Panel A: Mechanistic
-plot(simulateResiduals(mecanistic_model))
+# Panel A: Density-driven
+plot(simulateResiduals(density_driven_model))
 
-# Panel B: Functional
-plot(simulateResiduals(functionnal_model))
+# Panel B: Performance-based
+plot(simulateResiduals(performance_based_model))
 ```
 
 ```{r}
@@ -601,8 +614,8 @@ get_model_diag_pro <- function(model, label, dharma_p) {
 
 # Creating the table (Replace 0.86 and 0.21 with your actual DHARMa p-values)
 diagnostic_report <- bind_rows(
-  get_model_diag_pro(mecanistic_model, "Mechanistic", 0.864),
-  get_model_diag_pro(functionnal_model, "Functional", 0.208)
+  get_model_diag_pro(density_driven_model, "Density-driven", 0.864),
+  get_model_diag_pro(performance_based_model, "Performance-based", 0.208)
 )
 
 diagnostic_report %>%
@@ -614,13 +627,13 @@ diagnostic_report %>%
 
 As detailed in @tbl-diagnostic-summary, the validation phase confirms that the models are structurally sound :
 
--   The functional model (deviance explained: 34%) effectively captures the variance in abundance using the Gamma distribution. The DHARMa p-value ($p = 0.208$) confirms that the log-link successfully handled the mean-variance scaling without over dispersion.
+-   The perfomance-based model (deviance explained: 34%) effectively captures the variance in abundance using the Gamma distribution. The DHARMa p-value ($p = 0.208$) confirms that the log-link successfully handled the mean-variance scaling without over dispersion.
 
--   In the mechanistic model, the very low deviance explained (2.1%) and EDF values near 0 indicate a nearly flat or strictly linear relationship. This suggests that population density is a poor predictor of selection strength, effectively ruling out a strong density-dependent "mechanical" driver.
+-   In the density-driven model, the very low deviance explained (2.1%) and EDF values near 0 indicate a nearly flat or strictly linear relationship. This suggests that population density is a poor predictor of selection strength, effectively ruling out a strong density-dependent "mechanical" driver.
 
--   The `gam.check` results confirm we did not "choke" the models. In the functional model, $EDF < k'$, proving the smoothers had sufficient flexibility. In the mechanistic model, the low $k$-index is an artifact of the lack of signal (linearity) rather than a lack of basis functions.
+-   The `gam.check` results confirm we did not "choke" the models. In the performance-based model, $EDF < k'$, proving the smoothers had sufficient flexibility. In the density-driven model, the low $k$-index is an artifact of the lack of signal (linearity) rather than a lack of basis functions.
 
-> **Conclusion:** We accept both models for final interpretation. The functional approach provides a strong explanatory framework for success, while the mechanistic approach serves as a robust "null-effect" test for density-dependence.
+> **Conclusion:** We accept both models for final interpretation. The performance-based approach provides a strong explanatory framework for success, while the density-driven approach serves as a robust "null-effect" test for density-dependence.
 
 ### **Models results**
 
@@ -658,8 +671,8 @@ get_pub_table <- function(mech_mod, func_mod) {
   }
   
   bind_rows(
-    extract_stats(mech_mod, "Mechanistic"),
-    extract_stats(func_mod, "Functional")
+    extract_stats(mech_mod, "Density-driven"),
+    extract_stats(func_mod, "Performance-based")
   )
 }
 ```
@@ -669,12 +682,12 @@ get_pub_table <- function(mech_mod, func_mod) {
 #| tbl-cap: "Final synthesis of model performance and deviance partitioning"
 
 # 1. Generate the deviance partitioning metrics
-final_metrics <- get_pub_table(mecanistic_model, functionnal_model)
+final_metrics <- get_pub_table(density_driven_model, performance_based_model)
 
 # 2. Extract global fit stats using glance (AIC, Adj.R2)
 global_stats <- bind_rows(
-  glance(mecanistic_model) %>% mutate(Hypothesis = "Mechanistic"),
-  glance(functionnal_model) %>% mutate(Hypothesis = "Functional")
+  glance(density_driven_model) %>% mutate(Hypothesis = "Density-driven"),
+  glance(performance_based_model) %>% mutate(Hypothesis = "Performance-based")
 ) %>% 
   select(Hypothesis, adj.r.squared, AIC)
 
@@ -685,15 +698,92 @@ unified_table <- final_metrics %>%
 
 # 4. Render with kableExtra
 unified_table %>%
+  mutate(
+    # Hypothesis and Marginal D2 get the primary thematic bolding
+    Hypothesis = cell_spec(Hypothesis, bold = TRUE),
+    Marginal_D2 = cell_spec(Marginal_D2, bold = TRUE)
+  ) %>%
   kable(
-    col.names = c("Hypothesis", "Family", "Total D²", "Marginal D² (Fixed)", "Random D²", "Adj. R²", "AIC"),
+    format = "html",
+    escape = FALSE,
+    col.names = c("Hypothesis", "Family", "Total D²", "Marginal D²", "Random D²", "Adj. R²", "AIC"),,
     digits = 3,
     booktabs = TRUE, 
     align = "lcccccc"
   ) %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
-  add_header_above(c(" " = 2, "Deviance explained (D²)" = 3, "Fit metrics" = 2)) %>%
-  column_spec(4, bold = TRUE)
+  kable_styling(bootstrap_options = c("hover", "condensed"), full_width = FALSE, position = "center") %>%
+  row_spec(0:nrow(unified_table), background = "white") %>%
+  # Header consistency with Table 1
+  row_spec(0, bold = TRUE, background = "#f2f2f2") %>%
+  add_header_above(c(" " = 2, "Deviance Partitioning (D²)" = 3, "Fit Statistics" = 2), bold = TRUE,  background = "white") %>%
+  # Column highlighting (Column 4 is Marginal D2)
+  column_spec(1, width = "150px") %>%
+  column_spec(4, background = "#f9f9f9")
 ```
 
-> **Conclusion:** We accept both models for final interpretation. The functional approach provides a strong explanatory framework for success, while the mechanistic approach serves as a robust "null-effect" test for density.
+> **Conclusion:** We accept both models for final interpretation. The performance-based approach provides a strong explanatory framework for success, while the density-driven approach serves as a robust "null-effect" test for density.
+
+```{r}
+#| label: fig-performance-based-results
+#| fig-cap: "Demographic response to root selection intensity"
+#| fig-width: 8
+#| fig-height: 6
+
+preds <- as.data.frame(predict(performance_based_model, newdata = habitat_delta, se.fit = TRUE))
+habitat_results <- habitat_delta %>%
+  mutate(
+    fitted_abundance = exp(preds$fit),
+    lower_ci = exp(preds$fit - 2 * preds$se.fit),
+    upper_ci = exp(preds$fit + 2 * preds$se.fit)
+  )
+
+s_tab <- as.data.frame(summary(performance_based_model)$s.table) %>%
+  tibble::rownames_to_column("smooth") %>%
+  filter(grepl("delta.resid", smooth)) %>%
+  mutate(
+    p_label = cut(`p-value`, 
+                  breaks = c(-Inf, 0.001, 0.01, 0.05, Inf), 
+                  labels = c("***", "**", "*", "ns")),
+    clean_name = gsub("s\\(delta.resid\\):interaction\\(Predicted.class.levelup, root_type, drop = TRUE\\)", "", smooth)
+  ) %>%
+  separate(clean_name, into = c("Predicted.class.levelup", "root_type"), sep = "\\.", extra = "merge")
+
+
+p3 <- ggplot(habitat_results, aes(x = delta.resid, y = fitted_abundance)) +
+  # Vertical baseline for neutral selection
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey40", size = 0.5) +
+  
+  # CI Ribbon
+  geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci), 
+              fill = "#002651", alpha = 0.15) +
+  
+  # Points: Synchronized color with the z-score plot
+  geom_point(aes(color = delta.resid), size = 1.8, alpha = 0.6) +
+  scale_color_gradient2(low = "#5b0000", mid = "#e50000", high = "#f9cccc", 
+                        midpoint = 0, guide = "none") +
+  
+  # Contextual annotations for the X-axis
+  annotate("text", x = -1.5, y = Inf, label = "Attraction ←", 
+           vjust = 2, size = 2.5, color = "grey40", fontface = "italic") +
+  annotate("text", x = 1.5, y = Inf, label = "→ Avoidance", 
+           vjust = 2, size = 2.5, color = "grey40", fontface = "italic") +
+  
+  geom_text(data = s_tab, aes(x = Inf, y = -Inf, label = p_label),
+            hjust = 1.5, vjust = -1.5, inherit.aes = FALSE, 
+            size = 3.5, fontface = "bold", color = "black") +
+  
+  facet_grid(root_type ~ Predicted.class.levelup, scales = "free_y") +
+  
+  labs(x = "Selection intensity (residual z-score)", 
+       y = "Fitted population abundance") +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(color = "grey80", fill = NA),
+    strip.background = element_rect(fill = "#f7f7f7", color = NA),
+    strip.text = element_text(face = "bold"),
+    plot.caption = element_text(size = 9, color = "grey30", margin = margin(t=10))
+  )
+
+p3
+```
