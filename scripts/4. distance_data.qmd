@@ -27,7 +27,7 @@ library(stringr)
 # ===============================
 
 output_file <- "../output/distance_habitat_data.csv"
-tif_dir     <- "/media/ebelaud/INTENSO/output_raster"
+tif_dir     <- "/media/ebelaud/INTENSO1/output_raster"
 
 selected_vars <- c(
   "distance_root_growth",
@@ -61,7 +61,7 @@ image_names_to_process <- setdiff(image_names, images_done)
 
 loc_data <- read.csv(
   "../data/fauna_data.csv",
-  na.strings = c("", "NA")
+  na.strings = c("", "NA", "background")
 ) %>%
   filter(!is.na(Predicted.class)) %>%
   mutate(
