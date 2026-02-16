@@ -31,9 +31,12 @@ if (!dir.exists("../output")) {
 
 ```{r}
 df_pixel_count <- read.csv("../data/root_pixels_count.csv")
+image_bank <- read.table("../output/image_bank.txt")
+
 
 df <- df_pixel_count %>%
-  mutate(image_name = sub("\\.png$", "", df_pixel_count$file)) %>%  
+  filter(file %in% image_bank$V1)%>%
+  mutate(image_name = sub("\\.png$", "", file)) %>%   
   separate(file, into = c("bloc", "position", "orientation","year","month", "day", "hour", "minute", "fileextension1"), 
            sep = "_|\\.|H|M.| |-", remove = FALSE)%>%
   mutate(scanner= as.factor(paste(position, orientation, sep = "_")),
@@ -177,6 +180,7 @@ df_diff %>%
   mutate(mean_delta = mean(mean_delta, na.rm = TRUE),
          sd_delta = sd(sd_delta, na.rm = TRUE)) %>%
   ggplot(aes(lag_hours, mean_delta)) +
+  geom_vline(xintercept = 24 * 9, linetype = "dashed", color = "red") +
   geom_line() +
   facet_grid(depth~position)+
   labs(x = "Time step (hours)", y = "Average surface area of the apices (cm²)")
@@ -205,7 +209,7 @@ ggplot(derivatives_df, aes(x = lag_hours, y = .derivative)) +
   geom_line() +
   geom_ribbon(aes(ymin = .lower_ci, ymax = .upper_ci), alpha = 0.2) +
   geom_vline(xintercept = 24 * 9, linetype = "dashed", color = "red") +
-  facet_grid(depth ~ position) +
+  facet_grid(depth ~ position, scale="free") +
   labs(x = "Time steps (hours)", y = "Derived from the surface area of the apices") +
   theme_minimal()
 
