@@ -84,7 +84,7 @@ habitat_data_long <- habitat_data_raw %>%
   pivot_longer(cols = starts_with(c("growth", "mature")), 
                names_to = c("root_type", ".value"), names_sep = "_") %>%
   mutate(z_score = (obs - exp) / sd) %>% 
-  # filtering of extreme root density values
+  # filtering of extreme surface root density values
   filter(root_cm2_count >= quantile(root_cm2_count, 0.25, na.rm = TRUE) - 1.5 * IQR(root_cm2_count, na.rm = TRUE),root_cm2_count <= quantile(root_cm2_count, 0.25, na.rm = TRUE) + 1.5 * IQR(root_cm2_count, na.rm = TRUE)) %>%
   drop_na()
 
@@ -162,125 +162,6 @@ invisible(dev.off())
 
 The @fig-global-attraction reveals **significant, taxa-specific attraction to the root surface**, particularly for Collembola and Gastropoda. The strength of this selection varies by root type, suggesting that biological drivers - such as root exudation - shape spatial clustering beyond what is expected by chance.
 
-### *Defining the rhizosphere width*
-
-To delineate the precise spatial extent of root influence, we modeled invertebrate density as a function of root distance using Generalized Additive Models (GAMs) with a negative binomial distribution. To decouple biological selection from geometric bias – where soil volume increases quadratically with distance – a log-area offset as an exposure variable were incorporated. This effectively transformed raw counts into a density-based response. The rhizosphere width was defined as the distance where the first derivative of the spline first stabilized; specifically, where the 95% confidence interval of the slope included zero, indicating that animal density was no longer significantly influenced by root proximity.
-
-```{r}
-#| label: tbl-riz-extraction
-#| tbl-cap: "rhizosphere width modelisation"
-### 1. Data Binning and Geometric Area Correction 
-max_dist <- 10
-bin_w <- 0.1 #cm
-
-# Calculate the number of animals per distance bin and the available area.
-rhizo_decay_data <- habitat_data_long %>%
-  # Filter out distances that are too large and biased by edge effects
-  filter(obs <= max_dist) %>%
-  # Create bins and assign observations to the midpoint of the bin
-  mutate(dist_bin = floor(obs / bin_w) * bin_w + bin_w/2) %>%
-  group_by(dist_bin, Predicted.class.levelup, root_type) %>%
-  summarise(n_animals = n(), .groups = "drop") %>%
-  # GEOMETRIC CORRECTION: Calculate the area of the concentric ring (annulus).
-  # As distance (r) increases, the sampled area increases proportionally.
-  # Area = pi * (R_outer^2 - R_inner^2)
-  mutate(area = pi * ((dist_bin + bin_w/2)^2 - (dist_bin - bin_w/2)^2))
-
-### 2. GAM Fitting and Derivative Analysis
-extract_gam_stats <- function(df) {
-  # Minimum data threshold to ensure model stability
-  if (n_distinct(df$dist_bin) < 5 || sum(df$n_animals) < 10) return(NULL)
-  
-  # MODEL: Generalized Additive Model (GAM)
-  # Family = quasipoisson
-  # Offset = log(area): Treats the sampled area as an 'exposure' variable. 
-  # This converts the raw count model into a density model (count/area) 
-  # without the statistical pitfalls of using ratios directly.
-  model <- tryCatch({
-    gam(n_animals ~ s(dist_bin, k = 5), 
-        offset = log(area), 
-        data = df, 
-        family = nb())
-  }, error = function(e) return(NULL))
-  
-  if (is.null(model)) return(NULL)
-  
-  # RHIZOSPHERE IDENTIFICATION 
-  # We use the first derivative (slope) of the model to find where 
-  # the influence of the root stops (the plateau).
-  eval_pts <- data.frame(dist_bin = seq(0.05, 10, length.out = 200))
-  derivs <- derivatives(model, data = eval_pts, type = "forward")
-  
-  # STATISTICAL TIPPING POINT:
-  # The RIZ is defined as the distance where the 95% Confidence Interval 
-  # of the derivative first includes zero. At this point, the density 
-  # slope is no longer significantly different from a horizontal line.
-  riz_val <- derivs %>%
-    mutate(lower = .derivative - 1.96 * .se,
-           upper = .derivative + 1.96 * .se) %>%
-    # Filter out the first 0.5cm to avoid noise near the root surface
-    filter(dist_bin > 0.5, (lower < 0 & upper > 0) | lower > 0) %>% 
-    slice(1) %>% 
-    pull(dist_bin)
-  
-  #MODEL VALIDATION TESTS
-  res <- simulateResiduals(model, n = 250, plot = FALSE)
-  test_ks <- testUniformity(res, plot = FALSE)$p.value             # Distribution test
-  test_disp <- testDispersion(res, plot = FALSE)$p.value # Surdispersion test
-  test_out <- testOutliers(res, plot = FALSE)$p.value   # Outliers tests
-  
-  # RESULTS SUMMARY 
-  tibble(
-    edf = summary(model)$edf,             # Complexity of the curve (1 = linear)
-    p_val = summary(model)$s.pv,          # Significance of the spatial pattern
-    dev_expl = summary(model)$dev.expl * 100, # % of variance explained by root distance
-    riz_cm = if(length(riz_val) > 0) riz_val else NA_real_, # Distance of influence
-    n_total = sum(df$n_animals),           # Total count for the group
-    check_ks = test_ks,     # If < 0.05, distribution shape problem
-    check_disp = test_disp, # If < 0.05, overdispersion (justifies the quasi-Poisson distribution)
-    check_out = test_out   # If < 0.05, too many outliers
-  )
-}
-
-rhizo_stats_table <- rhizo_decay_data %>%
-  group_by(Predicted.class.levelup, root_type) %>%
-  do(extract_gam_stats(.))
-
-# 3. Tabular Presentation
-#| label: tbl-riz-width
-n_rows_riz <- nrow(rhizo_stats_table)
-
-t1 <- rhizo_stats_table %>%
-  select(-check_ks, -check_disp, -check_out) %>%
-  rename(
-    Taxa = Predicted.class.levelup, 
-    `Root Type` = root_type,
-    `Complexity (EDF)` = edf, 
-    `p-value` = p_val, 
-    `Dev. Expl (%)` = dev_expl,
-    `RIZ (cm)` = riz_cm, 
-    `n total` = n_total
-  ) %>%
-  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
-  mutate(
-    # Highlight significant RIZ values (p < 0.05)
-    `RIZ (cm)` = cell_spec(`RIZ (cm)`, bold = TRUE, 
-                           color = ifelse(`p-value` < 0.05, "#D7261E", "black"))
-  ) %>%
-  kbl(booktabs = TRUE, align = "c", format = "html", escape = FALSE) %>%
-  kable_styling(bootstrap_options = c("hover", "condensed"), position = "center", full_width = FALSE) %>%
-  row_spec(0:nrow(rhizo_stats_table), background = "white") %>%
-  # Uniform Border/Header Style
-  row_spec(0, bold = TRUE, background = "#f2f2f2") %>%
-  row_spec(0:n_rows_riz, extra_css = "border-bottom: 1px solid #dee2e6;") %>%
-  # Highlight the key biological metric (RIZ)
-  column_spec(6, background = "#f9f9f9") %>% 
-  collapse_rows(columns = 1:2, valign = "top") 
-t1 
-
-invisible(save_kable(t1, file = "../output/2.rhizosphere_width.png", zoom = 4,  expand = 30))
-```
-
 ## 2. The geometric niche: habitat availability constraint
 
 ```{r}
@@ -293,11 +174,11 @@ habitat_data_reframe <- habitat_data_long %>%
 
 ### *Are fauna close to the root by choice (attraction) or necessity (habitat saturation) ?*
 
-While attraction is a key driver, the physical presence of roots inherently constrains the available habitat. As root density increases, bulk soil volume diminishes, mathematically increasing the probability of fauna-root encounters regardless of biological preference. To isolate the true "biological signal," we modeled the $z$-score across a root density gradient. We utilized a Generalized Additive Model (GAM) with a Student-t (scat) distribution to account for the heavy-tailed nature of ecological distance data.
+While attraction is a key driver, the physical presence of roots inherently constrains the available habitat. As surface root density increases, bulk soil volume diminishes, mathematically increasing the probability of fauna-root encounters regardless of biological preference. To isolate the true "biological signal," we modeled the $z$-score across a surface root density gradient. We utilized a Generalized Additive Model (GAM) with a Student-t (scat) distribution to account for the heavy-tailed nature of ecological distance data.
 
 ```{r}
 #| label: geometric-constraint-model
-# Modeling the gap (Obs - Exp) as a function of root density
+# Modeling the gap (Obs - Exp) as a function of surface root density
 mod_delta <- gam(
     z_score ~ Predicted.class.levelup + root_type +
     s(root_cm2_count,  by = interaction(root_type, Predicted.class.levelup,  drop = TRUE), k=5) + 
@@ -359,7 +240,7 @@ p2 <-ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
   facet_grid(root_type ~ Predicted.class.levelup, scales = "free_x") +
   
   # Labels: Scientific naming
-  labs(x = expression(Root~Density~(cm^{2}*~count)), 
+  labs(x = expression(Surface~root~density~(cm^{2})), 
        y = "Fitted standardized selection index (z-score)") +
   theme_minimal(base_size = 12) +
   theme(
@@ -376,7 +257,7 @@ p2
 invisible(dev.off())
 ```
 
-> Contrary to the expectation that increasing root density would force the selection index toward zero (random distribution), our results show that biological attraction is maintained or even intensified at higher root densities. For Acari and Collembola, the $z$-score remains consistently negative or shows a downward trend as root density increases, particularly in growth zones. This indicates that the rhizosphere effect is not a simple artifact of limited bulk soil space; rather, invertebrates actively 'seek out' the root surface even when roots are abundant. In Gastropoda, the selection index remains remarkably stable across the entire density gradient, suggesting a constant functional requirement for the rhizosphere regardless of how much root habitat is physically available.
+> Contrary to the expectation that increasing surface root density would force the selection index toward zero (random distribution), our results show that biological attraction is maintained or even intensified at higher root densities. For Acari and Collembola, the $z$-score remains consistently negative or shows a downward trend as surface root density increases, particularly in growth zones. This indicates that the rhizosphere effect is not a simple artifact of limited bulk soil space; rather, invertebrates actively 'seek out' the root surface even when roots are abundant. In Gastropoda, the selection index remains remarkably stable across the entire density gradient, suggesting a constant functional requirement for the rhizosphere regardless of how much root habitat is physically available.
 
 ## 3. The selection - demography link : trait or by-product ?
 
