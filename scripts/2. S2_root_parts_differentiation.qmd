@@ -4,13 +4,17 @@ format:
   html:
     css: css/styles.css  
     embed-resources: true
+    theme: cosmo
     code-tools: true
-
+    toc: true
+    toc-depth: 4
 execute: 
   warning: false
   message: false
   echo: false
 ---
+
+To distinguish between mature and growing root zones, a temporal difference across 9-day intervals was applied
 
 ```{r}
 #| echo: false
@@ -92,7 +96,7 @@ ggplot(df, aes(date, root_cm2_count))+
 
 The differences in surface area between two successive images correspond to newly emerged portions of the roots, also known as apices. These young segments play a key role in the processes of absorption and exudation. A key question is therefore to determine the optimal time step for defining these growth areas in a meaningful way.
 
-We explore the distribution of newly appeared surfaces (surface delta \>\> apex) for a series of time steps ranging from 6 to 360 hours (15 days). Only significant positive deltas (\> 0.01 cm²) are retained to reflect actual growth activity:
+We examined the distribution of newly formed surfaces (surface delta at the apex) across time intervals ranging from 6 to 360 hours (15 days). Only positive surface increments were considered to represent effective growth. Negative deltas, which may reflect measurement variability or surface reduction, were set to zero and therefore do not contribute to the growth estimates :
 
 ```{r}
 time_lags <- seq(6, 720, by = 6)
@@ -119,7 +123,7 @@ df_diff <- df %>%
   group_modify(~calculate_differences(.x, time_lags))%>%
   ungroup()%>%
   filter(!is.na(delta_cm2))%>%
-  filter(delta_cm2 > 0)
+  mutate(delta_cm2 = if_else(delta_cm2 < 0, 0, delta_cm2))
 ```
 
 The average apex areas as a function of time step are shown, along with their variability (standard deviation). An initial average is calculated by scanner, then the values are aggregated:
@@ -134,6 +138,7 @@ plot1 <- df_diff %>%
   mutate(mean_delta = mean(mean_delta, na.rm = TRUE),
          sd_delta = sd(sd_delta, na.rm = TRUE)) %>%
   ggplot(aes(lag_hours, mean_delta)) +
+  geom_vline(xintercept = 24 * 9, linetype = "dashed", color = "red") +
   geom_line() +
   labs(x = "Time step (hours)", y = "Average surface area of the apices (cm²)")
 
@@ -141,6 +146,7 @@ plot2 <- plot1 +
   geom_ribbon(aes(ymin = mean_delta - sd_delta,
                   ymax = mean_delta + sd_delta,
                   alpha = 0.1)) +
+  geom_vline(xintercept = 24 * 9, linetype = "dashed", color = "red") +
   labs(y = "Average surface area ± SD (cm²)") +
   theme(legend.position = "none")
 
@@ -160,57 +166,8 @@ plot2
 mod <- gam(delta_cm2 ~ s(lag_hours),  random = list(scanner= ~1)
            ,data = df_diff)
 deriv <- derivatives(mod, order=1)
-draw(deriv)
-
-changepoint <- deriv$lag_hours[which(deriv$.lower_ci < 0)[1]] 
-min_deriv_idx <- which.min(deriv$.derivative)
-change_point <- deriv$lag_hours[min_deriv_idx]
-cat("thresholds :", round(change_point/24, 0), "days")
-```
-
-#### Variation in growth dynamics
-
-```{r}
-df_diff %>%
-  group_by(bloc, scanner, lag_hours) %>%
-  mutate(mean_delta = mean(delta_cm2, na.rm = TRUE),
-         sd_delta = sd(delta_cm2, na.rm = TRUE)) %>%
-  ungroup() %>%
-  group_by(depth, position, lag_hours) %>%
-  mutate(mean_delta = mean(mean_delta, na.rm = TRUE),
-         sd_delta = sd(sd_delta, na.rm = TRUE)) %>%
-  ggplot(aes(lag_hours, mean_delta)) +
-  geom_vline(xintercept = 24 * 9, linetype = "dashed", color = "red") +
-  geom_line() +
-  facet_grid(depth~position)+
-  labs(x = "Time step (hours)", y = "Average surface area of the apices (cm²)")
-
-
-compute_deriv_by_group <- function(df_group) {
-  tryCatch({
-    mod <- gam(delta_cm2 ~ s(lag_hours, bs = "cs"), data = df_group)
-    deriv <- derivatives(mod, order = 1) %>%
-      mutate(depth = unique(df_group$depth),
-             position = unique(df_group$position))
-    return(deriv)
-  }, error = function(e) {
-    return(NULL) 
-  })
-}
-
-# Apply by group (depth × position)
-derivatives_df <- df_diff %>%
-  group_by(depth, position) %>%
-  group_split() %>%
-  map_dfr(compute_deriv_by_group)
-
-# Visualisation
-ggplot(derivatives_df, aes(x = lag_hours, y = .derivative)) +
-  geom_line() +
-  geom_ribbon(aes(ymin = .lower_ci, ymax = .upper_ci), alpha = 0.2) +
-  geom_vline(xintercept = 24 * 9, linetype = "dashed", color = "red") +
-  facet_grid(depth ~ position, scale="free") +
-  labs(x = "Time steps (hours)", y = "Derived from the surface area of the apices") +
-  theme_minimal()
-
+draw(deriv)+
+  geom_vline(xintercept = 24 * 9,
+             linetype = "dashed",
+             color = "red")
 ```

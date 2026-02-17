@@ -1,5 +1,5 @@
 ---
-title: "Rhizosphère - Image bank selection"
+title: "Supplementary Information S1 : Curated image bank"
 format:
   html:
     css: css/styles.css  
@@ -16,6 +16,7 @@ execute:
 The large volume of images available in the DIAMS database makes it impossible to process them all exhaustively. It is therefore necessary to extract a relevant subset that is representative of the conditions throughout the entire period covered, while maintaining sufficient quality in terms of data completeness. The document describes the approach taken to achieve this selection.
 
 ```{r}
+#| label: setup-env
 #| echo: false
 library(tidyverse)
 library(ggplot2)
@@ -26,17 +27,11 @@ if (!dir.exists("../output")) {
 }
 ```
 
-### Data loading
-
-Data from the fauna database is being utilised.
-
 ```{r}
+#| label: data-import
 df_fauna <- read.csv("../data/fauna_data.csv", sep = ",", na.strings = c("", "NA"))
-```
 
-Only metadata related to usable images (=samples) are retained, i.e. those for which fauna data are available.
-
-```{r}
+#Only metadata related to usable images (=samples) are retained, i.e. those for which fauna data are available
 df <- df_fauna %>%  
   select(date, scanner, image_name) %>%
   unique() %>%
@@ -48,13 +43,13 @@ df <- df_fauna %>%
   filter(position != "B")
 ```
 
-### Hour filtering
-
-Correction of minute offset: Some images have a one-minute offset (minute = 01) that distorts the time selection. This bias is corrected by normalising the times.
+## Hour filtering
 
 **Only images captured at midnight and noon are selected.** These schedules are retained because they represent night and day periods respectively, regardless of seasonality.
 
 ```{r}
+#| label: hour-filtering
+#Correction of minute offset: Some images have a one-minute offset (minute = 01) that distorts the time selection. This bias is corrected by normalising the times.
 df <- df %>%
   mutate(date = if_else(minute(date) == 1, date - minutes(1), date),
     hour = hour(date),
@@ -68,11 +63,12 @@ df <- df %>%
   ungroup()
 ```
 
-### Completion of the dataset
+## Completion of the dataset
 
 In order to assess the completeness of the data, a comprehensive grid of all possible combinations (day, time, position, depth, orientation) is generated. This is then cross-referenced with the observed data in order to identify any missing combinations.
 
 ```{r}
+#| label: data-completion
 df_complete <- expand_grid(day = unique(df$day),
                           hour = c("00:00", "12:00"),
                           position = unique(df$position),
@@ -98,18 +94,18 @@ ggplot(df_complete, aes(x = datetime, y = scanner, color = as.factor(presence)))
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-### Period selection
+## Period selection
 
 To guarantee the quality of the selected subset, data completeness is verified for each acquisition date and over continuous periods.
 
-First, the **expected number of images per day** is determined.
+First, the **expected number of images per day** is determined :
 
 ```{r}
 nb_img_day <- n_distinct(df_complete$scanner) * 2 
 cat("Number of images expected per day : ", nb_img_day)
 ```
 
-We then identify the days on which at least **60% of these images are present**.
+We then identify the days on which at least **65% of these images are present** :
 
 ```{r}
 prop = 0.65
@@ -120,7 +116,7 @@ days_complete <- df_complete %>%
 cat("Number of images expected per day : ", round(nb_img_day * prop, 0))
 ```
 
-We select the **groups of 7 consecutive days** that meet this criterion.
+We select the **groups of 7 consecutive days** that meet this criterion :
 
 ```{r}
 duration_min_period = 7
@@ -166,7 +162,7 @@ ggplot(aes(x = datetime, y = scanner, color = as.factor(presence))) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-### Selection of representative weeks
+## Selection of representative weeks
 
 In order to cover different **seasonal and crop phases**, several 7-day periods spread throughout the year are targeted.
 
@@ -248,7 +244,7 @@ ggplot(df_final, aes(x = datetime, y = scanner, color = as.factor(presence))) +
 
 ```
 
-### Selection of previous images for differentiation
+## Selection of previous images for differentiation
 
 Creation of a copy of the image set with dates shifted by 9 days and selection of corresponding images
 
@@ -279,7 +275,7 @@ ggplot(aes(x = date, y = scanner, color = as.factor(presence))) +
 
 ```
 
-Filtering images from the current dataset based on missing images from the previous dataset :
+Filtering images from the current dataset based on missing images from the previous dataset
 
 ```{r}
 # We only keep 'Current' images (T0) that have a valid 'Reference' image (T-9).
@@ -294,11 +290,8 @@ df_final_filtered <- df_final %>%
             by = c("depth", "position", "orientation", "day_ref", "hour_ref"))%>%
   mutate(id_image = "current")%>%
   select(scanner, date, id_image, image_name)
-```
 
-Total list of images to be processed :
-
-```{r}
+#Total list of images to be processed
 # We combine the filtered 'Current' images and their 'Reference' images 
 # into a single vertical list for processing.
 df_combined <- df_reference %>%
@@ -322,11 +315,11 @@ ggplot(aes(x = date, y = scanner, color = as.factor(id_image))) +
 ```
 
 ```{r}
-cat("--- FINAL COMPLETENESS REPORT ---\n")
-cat("Initial target images (T0):      ", nrow(df_final), "\n")
-cat("Analyzable pairs (T0 + T-9):     ", nrow(df_final_filtered), "\n")
-cat("Number of missing images :", nrow(df_final)-nrow(df_final_filtered))
-cat("Missing frame rate :", round((1-(nrow(df_final_filtered)/nrow(df_final)))*100, 2), "%")
+cat("--- FINAL COMPLETENESS REPORT ---\n",
+    "Initial target images (T0):      ", nrow(df_final), "\n",
+      "Analyzable pairs (T0 + T-9):     ", nrow(df_final_filtered), "\n",
+      "Number of missing images :", nrow(df_final)-nrow(df_final_filtered), "\n",
+    "Missing frame rate :", round((1-(nrow(df_final_filtered)/nrow(df_final)))*100, 2), "%")
 ```
 
 |  |  |  |
@@ -340,14 +333,13 @@ cat("Missing frame rate :", round((1-(nrow(df_final_filtered)/nrow(df_final)))*1
 
 : Dataset Characterization
 
-### Creation of the image bank
-
 ```{r}
+# image bank creation
 images_bank <- paste0(unique(df_combined$image_name), ".png")
 writeLines(images_bank, "../output/image_bank.txt")
 ```
 
-### Generalized Diagnostic Function
+## Generalized Diagnostic Function
 
 ```{r}
 #' Check Data Consistency
@@ -412,7 +404,7 @@ check_integrity <- function(expected_df, target, mode = "folder", file_ext = ".p
 # 1. Checking the raw images folder
 check_integrity(
   expected_df = df_combined, 
-  target = "/media/ebelaud/INTENSO/rhizosphere_image_bank/", 
+  target = "/media/ebelaud/INTENSO1/rhizosphere_image_bank/", 
   mode = "folder", 
   file_ext = ".png"
 )
@@ -421,7 +413,7 @@ check_integrity(
 raster_suffixes <- "(_distance_root_growth|_distance_root_mature|_root_growth|_root_mature)"
 check_integrity(
   expected_df = df_final_filtered, 
-  target = "/media/ebelaud/INTENSO/output_raster", 
+  target = "/media/ebelaud/INTENSO1/output_raster", 
   mode = "folder", 
   file_ext = ".tif",
   clean_regex = raster_suffixes
