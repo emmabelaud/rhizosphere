@@ -1,5 +1,5 @@
 ---
-title: "Questioning the influence of roots: supplementary data"
+title: "Supplementary Information S3 : Sensitivity analysis"
 format:
   html:
     css: css/styles.css  
@@ -14,12 +14,12 @@ execute:
   echo: false
 ---
 
-## Setup and data preparation
+## Executive Summary
+
+This study investigates the spatial behavior of soil fauna in relation to root systems, challenging the notion of the rhizosphere as a simple, static attraction zone. By integrating null model simulations with Generalized Additive Models (GAMs), we decouple biological selection from physical habitat constraints and reveal that the demographic benefits of rhizosphere exploitation are governed by a distinct temporal lag.
 
 ```{r}
 #| label: setup-env
-Sys.setenv(CHROMOTE_CHROME_STARTUP_TIMEOUT = 120)
-Sys.setenv(CHROMOTE_CHROME_ARGS = "--no-sandbox --disable-gpu --disable-dev-shm-usage")
 # libraries
 library(tidyverse)
 library(mgcv)
@@ -81,7 +81,7 @@ habitat_data_long <- habitat_data_raw %>%
   pivot_longer(cols = starts_with(c("growth", "mature")), 
                names_to = c("root_type", ".value"), names_sep = "_") %>%
   mutate(z_score = (obs - exp) / sd) %>% 
-  # filtering of extreme root density values
+  # filtering of extreme surface root density values
   filter(root_cm2_count >= quantile(root_cm2_count, 0.25, na.rm = TRUE) - 1.5 * IQR(root_cm2_count, na.rm = TRUE),root_cm2_count <= quantile(root_cm2_count, 0.25, na.rm = TRUE) + 1.5 * IQR(root_cm2_count, na.rm = TRUE)) %>%
   drop_na()
 
@@ -92,7 +92,7 @@ habitat_data_long <- habitat_data_long %>%
   ungroup()
 ```
 
-## 1. Raw data exploration
+## 0. Raw data exploration
 
 ```{r}
 #| label: tbl-summary-raw-data
@@ -187,6 +187,8 @@ ggplot(metrics_long, aes(x = period, y = value, fill = period)) +
 
 ## 1. The rhizosphere effect: attraction and spatial signature
 
+> To quantify habitat selection, we adapted techniques widely used in radio-tracking studies (Calenge et al. 2005) based on the notion of marginality (the deviation between available habitat conditions and those used by animals). We overlaid invertebrate occurrence data onto high-resolution root distance maps, calculating the distance from each individual’s centroid detection to the nearest root. To characterize habitat availability, we projected 50 random points onto the corresponding root distance map for every invertebrate occurrence. We then derived the Standardized Effect Size (SES) for marginality index (a.k.a., Z-score) by calculating the deviation of the observed distance from the mean null expected distance, scaled by the expected standard deviation. This index serves as a measure of spatial marginality, where negative values indicate organisms are closer to roots than expected by chance and positive values indicate they are farther than expected relative to a random distribution. Hereafter, we use the terms ‘selection’ and ‘avoidance’ in a strictly statistical sense to denote consistent negative or positive spatial deviations from the null expectation, respectively; these terms describe observed spatial patterns and do not imply intentional or fitness-driven behavioral choices.
+
 ### **Why use Z-scores instead of simple differences?**
 
 To evaluate whether soil fauna actively select the rhizosphere, we must distinguish between biological attraction and spatial chance. We utilized a standardized selection index ($z$-score) calculated as:
@@ -230,157 +232,78 @@ p1_sd + p2_sd
 
 The "normalized signal" plot shows that the $z$-score remains more stable across the whole range of spatial complexities. This process tend to filters out stochastic noise and ensuring that a high negative $z$-score consistently indicates a biological "pull" toward the root, regardless of the complexity of the habitat.
 
-### **Defining the rhizosphere width**
+### **Do soil fauna actively select the rhizosphere space ?**
 
-Les résultats semblent mauvais donc à voir si on conserve.
+The central hypothesis of this study, which concerns the influence of roots on the spatial distribution of soil invertebrates, was first examined by testing for departures from random root-associated habitat use. Normalized marginality values were tested against zero using Wilcoxon signed-rank tests. Given the hypothesized functional specificities of organisms and root traits, these tests were conducted independently for each invertebrate taxon and root functional category.
 
 ```{r}
-#| label: riz-extraction
-#| eval: false
-#| include: false
-### 1. Data Binning and Geometric Area Correction 
-max_dist <- 10
-bin_w <- 0.1 #cm
+#| label: fig-global-attraction
+#| fig-cap: "Rhizosphere Attraction Index"
+#| fig-subcap:  "Negative Z-scores indicate active selection of the root zone"
+#| fig-width: 5
+#| fig-height: 4
 
-# Calculate the number of animals per distance bin and the available area.
-rhizo_decay_data <- habitat_data_long %>%
-  # Filter out distances that are too large and biased by edge effects
-  filter(obs <= max_dist) %>%
-  # Create bins and assign observations to the midpoint of the bin
-  mutate(dist_bin = floor(obs / bin_w) * bin_w + bin_w/2) %>%
-  group_by(dist_bin, Predicted.class.levelup, root_type) %>%
-  summarise(n_animals = n(), .groups = "drop") %>%
-  # GEOMETRIC CORRECTION: Calculate the area of the concentric ring (annulus).
-  # As distance (r) increases, the sampled area increases proportionally.
-  # Area = pi * (R_outer^2 - R_inner^2)
-  mutate(area = pi * ((dist_bin + bin_w/2)^2 - (dist_bin - bin_w/2)^2)) %>%
-  filter(n_animals >= quantile(n_animals, 0.25, na.rm = TRUE) - 1.5 * IQR(n_animals, na.rm = TRUE),n_animals <= quantile(n_animals, 0.25, na.rm = TRUE) + 1.5 * IQR(n_animals, na.rm = TRUE))
-
-### 2. GAM Fitting and Derivative Analysis
-extract_gam_stats <- function(df) {
-  # Minimum data threshold to ensure model stability
-  if (n_distinct(df$dist_bin) < 5 || sum(df$n_animals) < 10) return(NULL)
-  
-  # MODEL: Generalized Additive Model (GAM)
-  # Family = quasipoisson
-  # Offset = log(area): Treats the sampled area as an 'exposure' variable. 
-  # This converts the raw count model into a density model (count/area) 
-  # without the statistical pitfalls of using ratios directly.
-  model <- tryCatch({
-    gam(n_animals ~ s(dist_bin, k = 5), 
-        offset = log(area), 
-        data = df, 
-        family = nb())
-  }, error = function(e) return(NULL))
-  
-  if (is.null(model)) return(NULL)
-  
-  # RHIZOSPHERE IDENTIFICATION 
-  # We use the first derivative (slope) of the model to find where 
-  # the influence of the root stops (the plateau).
-  eval_pts <- data.frame(dist_bin = seq(0.05, 10, length.out = 200))
-  derivs <- derivatives(model, data = eval_pts, type = "forward")
-  
-  # STATISTICAL TIPPING POINT:
-  # The RIZ is defined as the distance where the 95% Confidence Interval 
-  # of the derivative first includes zero. At this point, the density 
-  # slope is no longer significantly different from a horizontal line.
-  riz_val <- derivs %>%
-    mutate(lower = .derivative - 1.96 * .se,
-           upper = .derivative + 1.96 * .se) %>%
-    # Filter out the first 0.5cm to avoid noise near the root surface
-    filter(dist_bin > 0.5, (lower < 0 & upper > 0) | lower > 0) %>% 
-    slice(1) %>% 
-    pull(dist_bin)
-  
-  #MODEL VALIDATION TESTS
-  res <- simulateResiduals(model, n = 250, plot = FALSE)
-  test_ks <- testUniformity(res, plot = FALSE)$p.value             # Distribution test
-  test_disp <- testDispersion(res, plot = FALSE)$p.value # Surdispersion test
-  test_out <- testOutliers(res, plot = FALSE)$p.value   # Outliers tests
-  
-  # RESULTS SUMMARY 
-  tibble(
-    edf = summary(model)$edf,             # Complexity of the curve (1 = linear)
-    p_val = summary(model)$s.pv,          # Significance of the spatial pattern
-    dev_expl = summary(model)$dev.expl * 100, # % of variance explained by root distance
-    riz_cm = if(length(riz_val) > 0) riz_val else NA_real_, # Distance of influence
-    n_total = sum(df$n_animals),           # Total count for the group
-    check_ks = test_ks,     # If < 0.05, distribution shape problem
-    check_disp = test_disp, # If < 0.05, overdispersion (justifies the quasi-Poisson distribution)
-    check_out = test_out   # If < 0.05, too many outliers
-  )
-}
-
-####
-# 2. Fonction de prédiction REVISITÉE
-get_predictions <- function(df_sub, grid_sub) {
-  # Filtre de sécurité
-  if (nrow(df_sub) < 5 || sum(df_sub$n_animals) < 10) return(NULL)
-  
-  # Fit du modèle
-  m <- tryCatch({
-    gam(n_animals ~ s(dist_bin, k = 5), offset = log(area), 
-        data = df_sub, family = nb())
-  }, error = function(e) return(NULL))
-  
-  if (is.null(m)) return(NULL)
-  
-  # Calcul des prédictions sur la grille fournie
-  preds <- predict(m, newdata = grid_sub, type = "response", se.fit = TRUE)
-  
-  # CONSTRUCTION DU DATAFRAME DE SORTIE
-  # On crée un nouveau df avec les vecteurs de même taille (100)
-  data.frame(
-    Predicted.class.levelup = grid_sub$Predicted.class.levelup,
-    root_type = grid_sub$root_type,
-    dist_bin = grid_sub$dist_bin,
-    fit = as.numeric(preds$fit),
-    se = as.numeric(preds$se.fit)
-  ) %>%
-    mutate(
-      upper = fit + (1.96 * se),
-      lower = pmax(0, fit - (1.96 * se))
-    )
-}
-
-# 3. Application (la structure reste la même)
-all_preds <- rhizo_decay_data %>%
+# Statistical summary of Z-scores by Taxa and Root Type
+rhizo_results <- habitat_data_long %>%
   group_by(Predicted.class.levelup, root_type) %>%
-  group_split() %>%
-  map_df(~{
-    group_info <- .x[1, c("Predicted.class.levelup", "root_type")]
-    grid_sub <- eval_grid %>% 
-      filter(Predicted.class.levelup == group_info$Predicted.class.levelup, 
-             root_type == group_info$root_type)
-    get_predictions(.x, grid_sub)
-  })
+  summarise(
+    n = n(),
+    med_z = median(z_score, na.rm = TRUE), # Median of the normalized score
+    p_val = wilcox.test(z_score, mu = 0)$p.value, # Test if Z is sig. different from 0
+    .groups = "drop") %>%
+  mutate(
+    p_label = case_when(p_val < 0.001 ~ "***", p_val < 0.01 ~ "**", p_val < 0.05 ~ "*", TRUE ~ "ns"))
 
-# 4. Graphique
-ggplot() +
-  geom_point(data = rhizo_decay_data, 
-             aes(x = dist_bin, y = n_animals / area), 
-             alpha = 0.3, size = 0.8, color = "grey40") +
-  geom_ribbon(data = all_preds, 
-              aes(x = dist_bin, ymin = lower, ymax = upper), 
-              fill = "steelblue", alpha = 0.2) +
-  geom_line(data = all_preds, 
-            aes(x = dist_bin, y = fit), 
-            color = "steelblue", size = 0.7) +
-  facet_grid(Predicted.class.levelup ~ root_type, scales = "free_y") +
-  theme_bw() +
-  labs(x = "Distance (cm)", y = "Densité (ind/cm²)")
+# Define background zones for visualization
+bg_zones <- tibble(xmin = c(0, -Inf),xmax = c(Inf, 0),ymin = -Inf, ymax = Inf, zone = c("Avoidance","Selection"))
+
+# Visualization of the Attraction Index
+p1 <- habitat_data_long %>%
+  filter(z_score >= quantile(z_score, 0.25, na.rm = TRUE) - 1.5 * IQR(z_score, na.rm = TRUE),
+    z_score <= quantile(z_score, 0.25, na.rm = TRUE) + 1.5 * IQR(z_score, na.rm = TRUE)) %>%
+  ggplot(aes(x = z_score, y = Predicted.class.levelup)) +
+  geom_rect(data = bg_zones, aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = zone), inherit.aes = FALSE, alpha = 0.15) +
+  geom_jitter(alpha = 0.1, height = 0.1, color = "grey60") +
+  geom_segment(data = rhizo_results, aes(y = Predicted.class.levelup, yend = Predicted.class.levelup, x = 0, xend = med_z),arrow = arrow(length = unit(0.20, "cm")), linewidth = 0.7, color = "#e50000") +
+  geom_vline(xintercept = 0, color = "black", linetype = "dashed", linewidth = 0.8) +
+  geom_text(data = rhizo_results, aes(x = med_z, y = Predicted.class.levelup, label = p_label), 
+            vjust = -0.5, color = "black", size = 3, fontface = "bold") +
+  facet_grid(root_type ~ .) +
+  scale_fill_manual(values = c("Selection" = "#F1F4C6", "Avoidance" = "#AAA6A4"), guide = "none") +
+  labs(x = "Standardized Attraction Index (Z-score)", 
+       y = NULL) +
+  theme_minimal() +
+  theme(panel.border = element_rect(color = "black", fill = NA, linewidth = 1.5),
+        strip.text = element_text(size = 10, face = "bold")) +
+  annotate("text",
+    x = Inf, y = Inf,
+    label = "Avoidance",
+    hjust = 1.1, vjust = 2,
+    size = 3, fontface = "italic", color = "#999593") +
+  annotate( "text",
+    x = -Inf, y = Inf,
+    label = "Selection",
+    hjust = -0.1, vjust = 2,
+    size = 3, fontface = "italic", color= "#c0c39e")
+
+
+p1
+tiff("../output/1.zscore_distribution.tiff", width = 1500, height = 1000, res = 250)
+p1
+invisible(dev.off())
 ```
+
+The @fig-global-attraction reveals **significant, taxa-specific attraction to the root surface**, particularly for Collembola and Gastropoda. The strength of this selection varies by root type, suggesting that biological drivers - such as root exudation - shape spatial clustering beyond what is expected by chance.
 
 ## 2. The geometric niche: habitat availability constraint
 
 ### **Context**
 
-While attraction is a key driver, the physical presence of roots inherently constrains the available habitat. As root density increases, bulk soil volume diminishes, mathematically increasing the probability of fauna-root encounters regardless of biological preference. To isolate the true "biological signal," we wanted to model the $z$-score across a root density gradient.
+While attraction is a key driver, the physical presence of roots inherently constrains the available habitat. As surface root density increases, bulk soil volume diminishes, mathematically increasing the probability of fauna-root encounters regardless of biological preference. To isolate the true "biological signal," we wanted to model the $z$-score across a surface root density gradient.
 
 ### **Addressing spatial-temporal autocorrelation**
 
-In our experimental setup, root density within a specific scanner over a 7-day period is often stable (see @fig-metric-variability). This creates a statistical challenge: if we model every individual occurrence, we treat each one as an independent "choice." However, occurrences within the same scanner and period are constrained by the same physical architecture. To avoid artificially inflating our degrees of freedom and providing a biased estimate of the "geometric niche," we performed a sensitivity analysis :
+In our experimental setup, surface root density within a specific scanner over a 7-day period is often stable (see @fig-metric-variability). This creates a statistical challenge: if we model every individual occurrence, we treat each one as an independent "choice." However, occurrences within the same scanner and period are constrained by the same physical architecture. To avoid artificially inflating our degrees of freedom and providing a biased estimate of the "geometric niche," we performed a sensitivity analysis :
 
 -   **Individual-Level Model:** High resolution, but susceptible to Type I errors due to high intra-replicate autocorrelation.
 -   **Aggregated-Level Model:** data is collapsed to Scanner × Period × Taxon × Root type means. This ensures that each data point represents a unique "habitat state," forcing the model to look for trends across experimental units rather than individual points.
@@ -402,7 +325,7 @@ habitat_data_reframe <- habitat_data_long %>%
 p_agg <- ggplot() +
   geom_point(data = habitat_data_long, aes(x = root_cm2_count, y = z_score), color = "grey", alpha = 0.5) +
   geom_point(data = habitat_data_reframe, aes(x = root_cm2_count, y = z_score), color = "orange")+ 
-  labs(title = "A. Z-score distribution according to root density", x = expression(Root~Density~(cm^2)), y = "z-score") +
+  labs(title = "A. Z-score distribution according to surface root density", x = expression(Root~Density~(cm^2)), y = "z-score") +
   theme_bw()
 
 # Density Plot: Comparing the underlying density distribution
@@ -415,7 +338,7 @@ p_var <- ggplot() +
 p_agg + p_var
 ```
 
-The "vertical striping" in @fig-aggregation-logic (A) highlights the pseudo-replication issue: many fauna share identical root density values. The aggregation process in @fig-aggregation-logic (B) preserves the experimental gradient while smoothing over-represented low-density zones, providing a more balanced predictor distribution.
+The "vertical striping" in @fig-aggregation-logic (A) highlights the pseudo-replication issue: many fauna share identical surface root density values. The aggregation process in @fig-aggregation-logic (B) preserves the experimental gradient while smoothing over-represented low-density zones, providing a more balanced predictor distribution.
 
 ### **Distribution choice: Why `scat()`?**
 
@@ -491,17 +414,16 @@ model_perf %>%
 
 The individual model identifies 6 out of 8 smooth terms as significant. However, this significance is deceptive; with a deviance explained of only 2.6%, the model has almost no predictive power. The low p-values are likely a mathematical byproduct of the large sample size and high spatial autocorrelation (pseudo replication). The aggregated model, by collapsing the data to replicate means, eliminate individual-level stochasticity. While the "significance" vanishes (0/8 terms), the deviance explained increases nearly four-fold (9.4%). Furthermore, the average EDF (Effective Degrees of Freedom) drops from \~3.28 to \~1.66, indicating that the model is no longer trying to "wiggle" through noise, but is instead finding a simpler, more stable (though non-significant) trend.
 
-### **Conclusion about the "geometric niche"**
+### **Are fauna close to the root by choice (attraction) or necessity (habitat saturation) ?**
+
+While attraction is a key driver, the physical presence of roots inherently constrains the available habitat. As surface root density increases, bulk soil volume diminishes, mathematically increasing the probability of fauna-root encounters regardless of biological preference. To isolate the true "biological signal," we modeled the $z$-score across a surface root density gradient. We utilized a Generalized Additive Model (GAM) with a Student-t (scat) distribution to account for the heavy-tailed nature of ecological distance data.
 
 ```{r}
-#| label: fig-final-constraint-plot
-#| fig-cap: "Biological selection vs. geometric constraint"
-#| fig-subcap: "Negative values represent active biological attraction beyond spatial probability"
-#| fig-width: 8
-#| fig-height: 6
+#| label: tbl-geometric-constraint
+#| tbl-cap: "Summary of smooth term results for surface root density (root_cm2_count) on z_score by root type and taxon"
 
-# Extract significance for plot annotation
-s_tab <- as.data.frame(summary(mod_aggregated)$s.table) %>%
+# Extract significance
+s_tab_1 <- as.data.frame(summary(mod_aggregated)$s.table) %>%
   tibble::rownames_to_column("smooth") %>%
   filter(grepl("root_cm2_count", smooth)) %>%
   mutate(
@@ -512,6 +434,55 @@ s_tab <- as.data.frame(summary(mod_aggregated)$s.table) %>%
   ) %>%
   separate(group_str, into = c("root_type", "Predicted.class.levelup"), sep = "\\.")
 
+
+# Model significance results
+n_rows_delta <- nrow(s_tab_1)
+
+s_tab_1 %>%
+  select(Predicted.class.levelup,
+         root_type,
+         edf,
+         Ref.df,
+         Chi.sq,
+         `p-value`,
+         p_label) %>%
+  rename(
+    Taxa = Predicted.class.levelup,
+    `Root Type` = root_type,
+    `Complexity (EDF)` = edf,
+    `Ref.df` = Ref.df,
+    `Chi-square` = Chi.sq,
+    `p-value` = `p-value`,
+    `Sign.` = p_label
+  ) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+  mutate(
+    # Mise en évidence des p-values significatives
+    `Sign.` = cell_spec(`Sign.`, bold = TRUE,color = "#D7261E")
+  ) %>%
+  arrange(Taxa, `Root Type`) %>%
+  kbl(booktabs = TRUE,
+      align = "c",
+      format = "html",
+      escape = FALSE) %>%
+  kable_styling(
+    bootstrap_options = c("hover", "condensed"),
+    position = "center"
+  ) %>%
+  row_spec(0, bold = TRUE, background = "#f2f2f2") %>%
+  row_spec(0:n_rows_delta, background = "white") %>%
+  row_spec(0:n_rows_delta, extra_css = "border-bottom: 1px solid #dee2e6;") %>%
+  column_spec(7, background = "#f9f9f9") %>%  
+  collapse_rows(columns = 1, valign = "top")
+```
+
+```{r}
+#| label: fig-final-constraint-plot
+#| fig-cap: "Biological selection vs. geometric constraint"
+#| fig-subcap: "Negative values represent active biological attraction beyond spatial probability"
+#| fig-width: 8
+#| fig-height: 6
+#| 
 # Augment data for plotting
 habitat_delta <- safe_augment(mod_aggregated, habitat_data_reframe, "delta")
 habitat_delta <- habitat_delta %>%
@@ -519,7 +490,8 @@ habitat_delta <- habitat_delta %>%
   drop_na()
 
 
-p2 <-ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
+p2 <-ggplot(habitat_delta, aes(x = root_cm2_count, y = z_score)) +
+  geom_point(aes(color = z_score),size = 1.8)+
   # Zero line as a baseline for "No Selection"
   geom_hline(yintercept = 0, linetype = "dashed", color = "grey40", size = 0.5) +
   
@@ -529,22 +501,22 @@ p2 <-ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
               fill = "#002651", alpha = 0.15) +
   
   # Points: Reduced alpha to manage overlap in dense regions
-  geom_point(aes(color = delta.fitted), size = 1.8, alpha = 0.6) +
+  geom_line(aes(y = delta.fitted), color = "black", linewidth = 0.5) +
   
   # Scale: Red = Strong Attraction (Biological Signal)
   scale_color_gradient2(low = "#5b0000", mid = "#e50000", high = "#f9cccc", 
                         midpoint = 0, guide = "none") +
   
   # Significance: Better placement and size
-  geom_text(data = s_tab, aes(x = Inf, y = -Inf, label = p_label),
-            hjust = 1.5, vjust = -1.5, inherit.aes = FALSE, 
+  geom_text(data = s_tab_1, aes(x = Inf, y = Inf, label = p_label),
+            hjust = 2, vjust = 2, inherit.aes = FALSE, 
             size = 3.5, fontface = "bold.italic", color = "black") +
   
   facet_grid(root_type ~ Predicted.class.levelup, scales = "free_x") +
   
   # Labels: Scientific naming
-  labs(x = expression(Root~Density~(cm^{2}*~count)), 
-       y = "Fitted standardized selection index (z-score)") +
+  labs(x = expression(Surface~root~density~(cm^{2})), 
+       y = "Standardized selection index (z-score)") +
   theme_minimal(base_size = 12) +
   theme(
     panel.grid.minor = element_blank(),
@@ -557,7 +529,7 @@ p2 <-ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
 p2
 ```
 
-> **Conclusion:** The aggregated model provides a more conservative and honest estimate of the "geometric niche." It demonstrates that, once individual-level noise is removed, there is no evidence for a strong non-linear selection effect across the root density gradient. Root selection is not merely a byproduct of encountering more roots in dense areas, but a consistent biological signal.
+> **Conclusion:** The aggregated model provides a more conservative and honest estimate of the "geometric niche." It demonstrates that, once individual-level noise is removed, there is no evidence for a strong non-linear selection effect across the surface root density gradient. Root selection is not merely a byproduct of encountering more roots in dense areas, but a consistent biological signal.
 
 ## 3. The selection - demography link : trait or by-product ?
 
@@ -737,7 +709,7 @@ habitat_results <- habitat_delta %>%
     upper_ci = exp(preds$fit + 2 * preds$se.fit)
   )
 
-s_tab <- as.data.frame(summary(performance_based_model)$s.table) %>%
+s_tab_2 <- as.data.frame(summary(performance_based_model)$s.table) %>%
   tibble::rownames_to_column("smooth") %>%
   filter(grepl("delta.resid", smooth)) %>%
   mutate(
@@ -749,7 +721,8 @@ s_tab <- as.data.frame(summary(performance_based_model)$s.table) %>%
   separate(clean_name, into = c("Predicted.class.levelup", "root_type"), sep = "\\.", extra = "merge")
 
 
-p3 <- ggplot(habitat_results, aes(x = delta.resid, y = fitted_abundance)) +
+p3 <- ggplot(habitat_results, aes(x = delta.resid, y = abundance)) +
+  geom_point(aes(color = delta.resid),size = 1.8)+
   # Vertical baseline for neutral selection
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey40", size = 0.5) +
   
@@ -758,7 +731,7 @@ p3 <- ggplot(habitat_results, aes(x = delta.resid, y = fitted_abundance)) +
               fill = "#002651", alpha = 0.15) +
   
   # Points: Synchronized color with the z-score plot
-  geom_point(aes(color = delta.resid), size = 1.8, alpha = 0.6) +
+  geom_line(aes(y = fitted_abundance), color = "black", linewidth = 0.5) +
   scale_color_gradient2(low = "#5b0000", mid = "#e50000", high = "#f9cccc", 
                         midpoint = 0, guide = "none") +
   
@@ -768,14 +741,14 @@ p3 <- ggplot(habitat_results, aes(x = delta.resid, y = fitted_abundance)) +
   annotate("text", x = 1.5, y = Inf, label = "→ Avoidance", 
            vjust = 2, size = 2.5, color = "grey40", fontface = "italic") +
   
-  geom_text(data = s_tab, aes(x = Inf, y = -Inf, label = p_label),
-            hjust = 1.5, vjust = -1.5, inherit.aes = FALSE, 
+  geom_text(data = s_tab_2, aes(x = Inf, y = Inf, label = p_label),
+            hjust = 2, vjust = 2, inherit.aes = FALSE, 
             size = 3.5, fontface = "bold", color = "black") +
   
   facet_grid(root_type ~ Predicted.class.levelup, scales = "free_y") +
   
   labs(x = "Selection intensity (residual z-score)", 
-       y = "Fitted population abundance") +
+       y = "Squared population abundance") +
   theme_minimal(base_size = 12) +
   theme(
     panel.grid.minor = element_blank(),
@@ -786,4 +759,9 @@ p3 <- ggplot(habitat_results, aes(x = delta.resid, y = fitted_abundance)) +
   )
 
 p3
+tiff("../output/2.functional-results.tiff", width = 2200, height = 1400, res = 300)
+p3
+invisible(dev.off())
 ```
+
+> The back-transformed partial effects of the performance-based model (@fig-performance-based-results) visualize how specific taxa benefit from rhizosphere exploitation.
