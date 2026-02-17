@@ -323,7 +323,7 @@ cat("--- FINAL COMPLETENESS REPORT ---\n",
 ```
 
 |  |  |  |
-|------------------------|------------------------|------------------------|
+|----|----|----|
 | **Dataset Name** | **Description** | **Role in the pipeline** |
 | **`df_complete`** | Theoretical grid vs. Observed data. | Used to calculate the initial missing data rate and identify stable periods. |
 | **`df_final`** | Targeted images based on seasonal periods. | Represents the "intended" scope of the study. |

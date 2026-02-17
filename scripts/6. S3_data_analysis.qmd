@@ -83,7 +83,11 @@ habitat_data_long <- habitat_data_raw %>%
   mutate(z_score = (obs - exp) / sd) %>% 
   # filtering of extreme surface root density values
   filter(root_cm2_count >= quantile(root_cm2_count, 0.25, na.rm = TRUE) - 1.5 * IQR(root_cm2_count, na.rm = TRUE),root_cm2_count <= quantile(root_cm2_count, 0.25, na.rm = TRUE) + 1.5 * IQR(root_cm2_count, na.rm = TRUE)) %>%
-  drop_na()
+  drop_na()%>%
+  mutate(root_type = case_when(
+  root_type == "growth" ~ "growing apex",
+  root_type == "mature" ~ "mature zone"
+))
 
 # Creation of an intra-specific invertebrate abundance variable
 habitat_data_long <- habitat_data_long %>%
