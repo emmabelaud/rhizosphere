@@ -4,7 +4,6 @@ format:
   html:
     css: css/styles.css  
     embed-resources: true
-    theme: cosmo
     code-tools: true
     toc: true
     toc-depth: 4
@@ -190,7 +189,7 @@ mod_delta <- gam(
 )
 
 # Extract significance for plot annotation
-s_tab <- as.data.frame(summary(mod_delta)$s.table) %>%
+s_tab_1 <- as.data.frame(summary(mod_delta)$s.table) %>%
   tibble::rownames_to_column("smooth") %>%
   filter(grepl("root_cm2_count", smooth)) %>%
   mutate(
@@ -206,6 +205,53 @@ habitat_delta <- safe_augment(mod_delta, habitat_data_reframe, "delta")
 habitat_delta <- habitat_delta %>%
   select(-delta.sigma)%>%
   drop_na()
+
+# Table formating 
+library(dplyr)
+library(kableExtra)
+
+library(dplyr)
+library(kableExtra)
+
+n_rows_delta <- nrow(s_tab_1)
+
+s_tab_1 %>%
+  select(Predicted.class.levelup,
+         root_type,
+         edf,
+         Ref.df,
+         Chi.sq,
+         `p-value`,
+         p_label) %>%
+  rename(
+    Taxa = Predicted.class.levelup,
+    `Root Type` = root_type,
+    `Complexity (EDF)` = edf,
+    `Ref.df` = Ref.df,
+    `Chi-square` = Chi.sq,
+    `p-value` = `p-value`,
+    `Sign.` = p_label
+  ) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 3))) %>%
+  mutate(
+    # Mise en évidence des p-values significatives
+    `Sign.` = cell_spec(`Sign.`, bold = TRUE,color = "#D7261E")
+  ) %>%
+  arrange(Taxa, `Root Type`) %>%
+  kbl(booktabs = TRUE,
+      align = "c",
+      format = "html",
+      escape = FALSE,
+      caption = "Smooth term results for surface root density (root_cm2_count) \non z_score by root type and taxon") %>%
+  kable_styling(
+    bootstrap_options = c("hover", "condensed"),
+    position = "center"
+  ) %>%
+  row_spec(0, bold = TRUE, background = "#f2f2f2") %>%
+  row_spec(0:n_rows_delta, background = "white") %>%
+  row_spec(0:n_rows_delta, extra_css = "border-bottom: 1px solid #dee2e6;") %>%
+  column_spec(7, background = "#f9f9f9") %>%  
+  collapse_rows(columns = 1, valign = "top")
 ```
 
 ```{r}
@@ -216,7 +262,8 @@ habitat_delta <- habitat_delta %>%
 #| fig-height: 6
 
 
-p2 <-ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
+p2 <-ggplot(habitat_delta, aes(x = root_cm2_count, y = z_score)) +
+  geom_point(aes(color = z_score),size = 1.8)+
   # Zero line as a baseline for "No Selection"
   geom_hline(yintercept = 0, linetype = "dashed", color = "grey40", size = 0.5) +
   
@@ -226,22 +273,22 @@ p2 <-ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
               fill = "#002651", alpha = 0.15) +
   
   # Points: Reduced alpha to manage overlap in dense regions
-  geom_point(aes(color = delta.fitted), size = 1.8, alpha = 0.6) +
+  geom_line(aes(y = delta.fitted), color = "black", linewidth = 0.5) +
   
   # Scale: Red = Strong Attraction (Biological Signal)
   scale_color_gradient2(low = "#5b0000", mid = "#e50000", high = "#f9cccc", 
                         midpoint = 0, guide = "none") +
   
   # Significance: Better placement and size
-  geom_text(data = s_tab, aes(x = Inf, y = -Inf, label = p_label),
-            hjust = 1.5, vjust = -1.5, inherit.aes = FALSE, 
+  geom_text(data = s_tab_1, aes(x = Inf, y = Inf, label = p_label),
+            hjust = 2, vjust = 2, inherit.aes = FALSE, 
             size = 3.5, fontface = "bold.italic", color = "black") +
   
   facet_grid(root_type ~ Predicted.class.levelup, scales = "free_x") +
   
   # Labels: Scientific naming
   labs(x = expression(Surface~root~density~(cm^{2})), 
-       y = "Fitted standardized selection index (z-score)") +
+       y = "Standardized selection index (z-score)") +
   theme_minimal(base_size = 12) +
   theme(
     panel.grid.minor = element_blank(),
@@ -252,9 +299,6 @@ p2 <-ggplot(habitat_delta, aes(x = root_cm2_count, y = delta.fitted)) +
   )
 
 p2
-tiff("../output/3.geometric_constraint.tiff", width = 2200, height = 1400, res = 300)
-p2
-invisible(dev.off())
 ```
 
 > Contrary to the expectation that increasing surface root density would force the selection index toward zero (random distribution), our results show that biological attraction is maintained or even intensified at higher root densities. For Acari and Collembola, the $z$-score remains consistently negative or shows a downward trend as surface root density increases, particularly in growth zones. This indicates that the rhizosphere effect is not a simple artifact of limited bulk soil space; rather, invertebrates actively 'seek out' the root surface even when roots are abundant. In Gastropoda, the selection index remains remarkably stable across the entire density gradient, suggesting a constant functional requirement for the rhizosphere regardless of how much root habitat is physically available.
@@ -363,9 +407,6 @@ t2 <- unified_table %>%
   column_spec(4, background = "#f9f9f9")
 
 t2
-
-invisible(save_kable(t2, file = "../output/4.deviance_partitioning.png", zoom = 4, 
-           expand = 30))
 ```
 
 > Statistical comparison via deviance partitioning (@tbl-demographic-results) strongly supports the performance-based hypothesis. While the density-driven model explained a negligible fraction of the variance (Marginal $D^2 = 2.0\%$), the perfomance-based model accounted for $34.0\%$ of total deviance, with biological selection specifically explaining $11.1\%$. This indicates that for key soil taxa, the ability to locate and exploit root resources is a primary driver of population dynamics rather than a secondary consequence of crowding.
@@ -386,7 +427,7 @@ habitat_results <- habitat_delta %>%
     upper_ci = exp(preds$fit + 2 * preds$se.fit)
   )
 
-s_tab <- as.data.frame(summary(performance_based_model)$s.table) %>%
+s_tab_2 <- as.data.frame(summary(performance_based_model)$s.table) %>%
   tibble::rownames_to_column("smooth") %>%
   filter(grepl("delta.resid", smooth)) %>%
   mutate(
@@ -398,7 +439,8 @@ s_tab <- as.data.frame(summary(performance_based_model)$s.table) %>%
   separate(clean_name, into = c("Predicted.class.levelup", "root_type"), sep = "\\.", extra = "merge")
 
 
-p3 <- ggplot(habitat_results, aes(x = delta.resid, y = fitted_abundance)) +
+p3 <- ggplot(habitat_results, aes(x = delta.resid, y = abundance)) +
+  geom_point(aes(color = delta.resid),size = 1.8)+
   # Vertical baseline for neutral selection
   geom_vline(xintercept = 0, linetype = "dashed", color = "grey40", size = 0.5) +
   
@@ -407,7 +449,7 @@ p3 <- ggplot(habitat_results, aes(x = delta.resid, y = fitted_abundance)) +
               fill = "#002651", alpha = 0.15) +
   
   # Points: Synchronized color with the z-score plot
-  geom_point(aes(color = delta.resid), size = 1.8, alpha = 0.6) +
+  geom_line(aes(y = fitted_abundance), color = "black", linewidth = 0.5) +
   scale_color_gradient2(low = "#5b0000", mid = "#e50000", high = "#f9cccc", 
                         midpoint = 0, guide = "none") +
   
@@ -417,14 +459,14 @@ p3 <- ggplot(habitat_results, aes(x = delta.resid, y = fitted_abundance)) +
   annotate("text", x = 1.5, y = Inf, label = "→ Avoidance", 
            vjust = 2, size = 2.5, color = "grey40", fontface = "italic") +
   
-  geom_text(data = s_tab, aes(x = Inf, y = -Inf, label = p_label),
-            hjust = 1.5, vjust = -1.5, inherit.aes = FALSE, 
+  geom_text(data = s_tab_2, aes(x = Inf, y = Inf, label = p_label),
+            hjust = 2, vjust = 2, inherit.aes = FALSE, 
             size = 3.5, fontface = "bold", color = "black") +
   
   facet_grid(root_type ~ Predicted.class.levelup, scales = "free_y") +
   
   labs(x = "Selection intensity (residual z-score)", 
-       y = "Fitted population abundance") +
+       y = "Squared population abundance") +
   theme_minimal(base_size = 12) +
   theme(
     panel.grid.minor = element_blank(),
@@ -435,7 +477,7 @@ p3 <- ggplot(habitat_results, aes(x = delta.resid, y = fitted_abundance)) +
   )
 
 p3
-tiff("../output/5.functional-results.tiff", width = 2200, height = 1400, res = 300)
+tiff("../output/2.functional-results.tiff", width = 2200, height = 1400, res = 300)
 p3
 invisible(dev.off())
 ```
