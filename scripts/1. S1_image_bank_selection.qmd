@@ -1,5 +1,6 @@
 ---
 title: "Supplementary Information S1 : Curated image bank"
+author: "Emma Belaud"
 format:
   html:
     css: css/styles.css  

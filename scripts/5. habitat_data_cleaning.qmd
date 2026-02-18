@@ -1,5 +1,6 @@
 ---
 title: "habitat_data_cleaning"
+author: "Emma Belaud"
 format: html
 editor: visual
 ---

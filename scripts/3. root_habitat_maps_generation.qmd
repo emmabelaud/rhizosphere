@@ -1,5 +1,6 @@
 ---
 title: "root_habitats_generation"
+author: "Emma Belaud"
 format:
   html:
     embed-resources: true

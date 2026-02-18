@@ -1,5 +1,6 @@
 ---
 title: "fauna_habitat_data"
+author: "Emma Belaud"
 format:
   html:
     embed-resources: true

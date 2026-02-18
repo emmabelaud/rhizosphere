@@ -1,5 +1,6 @@
 ---
 title: "Supplementary Information S2 : Characterisation of root growth dynamics"
+author: "Emma Belaud"
 format:
   html:
     css: css/styles.css  

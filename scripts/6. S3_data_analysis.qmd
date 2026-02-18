@@ -1,5 +1,6 @@
 ---
 title: "Supplementary Information S3 : Sensitivity analysis"
+author: "Emma Belaud"
 format:
   html:
     css: css/styles.css  
