@@ -1,6 +1,6 @@
-# Questioning the influence of roots: A soil fauna perspective on rhizosphere space
+# A new dimension of the rhizosphere: Microscale spatial organization of soil invertebrates around roots
 
-This repository contains the R scripts associated with the publication "*Questioning the influence of roots: A soil fauna perspective on rhizosphere space*" currently being written. This study uses high-resolution in situ imaging combined with resource selection function framework to quantify how soil invertebrates organise their activity around roots at the microscopic scale.
+This repository contains the R scripts associated with the publication "*A new dimension of the rhizosphere: Microscale spatial organization of soil invertebrates around roots*" currently being written. Raw data are avaible at the following link : https://doi.org/10.57745/9VMCNE. This study uses high-resolution in situ imaging combined with resource selection function framework to quantify how soil invertebrates organise their activity around living roots at the microscopic scale.
 
 ## Analytical approach
 
