@@ -1,12 +1,12 @@
 # A new dimension of the rhizosphere: Microscale spatial organization of soil invertebrates around roots
 
-This repository contains the R scripts associated with the publication "*A new dimension of the rhizosphere: Microscale spatial organization of soil invertebrates around roots*" currently being written. Raw data are avaible at the following link : https://doi.org/10.57745/9VMCNE. This study uses high-resolution in situ imaging combined with resource selection function framework to quantify how soil invertebrates organise their activity around living roots at the microscopic scale.
+This repository contains the R scripts associated with the publication "*A new dimension of the rhizosphere: Microscale spatial organization of soil invertebrates around roots*" currently being written. Raw data are avaible at the following link : <https://doi.org/10.57745/9VMCNE>. This study uses high-resolution in situ imaging combined with resource selection function framework to quantify how soil invertebrates organise their activity around living roots at the microscopic scale.
 
 ## Analytical approach
 
 To quantify habitat selection, we adapted techniques widely used in radio-tracking studies (Calenge et al. 2005) based on the notion of marginality (the deviation between available habitat conditions and those used by animals). We overlaid invertebrate occurrence data onto high-resolution root distance maps derived from the corresponding images, calculating the distance from each individual’s centroid detection to the nearest root. To characterize habitat availability for each invertebrate occurrence, we projected 50 random points onto the corresponding root distance map. We then derived the standardized effect size (Z-score) for marginality index by calculating the deviation of the observed distance from the mean null expected distance, scaled by the expected standard deviation. This index serves as a measure of spatial marginality, where negative values indicate organisms are closer to roots than expected by chance and positive values indicate they are farther than expected relative to a random distribution. We use the terms ‘selection’ and ‘avoidance’ in a strictly statistical sense to denote consistent negative or positive spatial deviations from the null expectation, respectively; these terms describe observed spatial patterns and do not imply intentional or fitness-driven behavioral choices.
 
-![Figure illustrating the conceptual and methodological approach](images/analytical-approach.png)
+![Figure illustrating the conceptual and methodological approach](images/Figure.1.png)
 
 ## Data
 

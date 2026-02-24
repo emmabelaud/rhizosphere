@@ -293,7 +293,7 @@ p1 <- habitat_data_long %>%
 
 
 p1
-tiff("../output/1.zscore_distribution.tiff", width = 1500, height = 1000, res = 250)
+tiff("../output/Figure.2.tiff", width = 1500, height = 1000, res = 250)
 p1
 invisible(dev.off())
 ```
@@ -764,7 +764,7 @@ p3 <- ggplot(habitat_results, aes(x = delta.resid, y = abundance)) +
   )
 
 p3
-tiff("../output/2.functional-results.tiff", width = 2200, height = 1400, res = 300)
+tiff("../output/Figure.3.tiff", width = 2200, height = 1400, res = 300)
 p3
 invisible(dev.off())
 ```
