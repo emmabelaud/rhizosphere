@@ -10,7 +10,7 @@ To quantify habitat selection, we adapted techniques widely used in radio-tracki
 
 ## Data
 
-The data required to generate the results can be temporarily downloaded at the following link: [dataverse repository]([https://doi.org/10.57745/9VMCNE]).
+The data required to generate the results can be temporarily downloaded at the following link: [dataverse repository](https://doi.org/10.57745/9VMCNE).
 
 ## Code
 
