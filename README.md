@@ -8,10 +8,6 @@ To quantify habitat selection, we adapted techniques widely used in radio-tracki
 
 ![Figure illustrating the conceptual and methodological approach](images/Figure.1.png)
 
-## Data
-
-The data required to generate the results can be temporarily downloaded at the following link: [dataverse repository](https://doi.org/10.57745/9VMCNE).
-
 ## Code
 
 The folder "scripts" contains 6 R-quarto files.
