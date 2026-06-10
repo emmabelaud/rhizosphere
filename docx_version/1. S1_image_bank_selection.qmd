@@ -1,0 +1,519 @@
+---
+title: "Supplementary Information S1 : Curated image bank"
+format:
+  docx:
+    toc: false
+    highlight-style: github
+    fig-dpi: 300
+    fig-format: png
+    df-print: kable
+    reference-doc: custom-reference.docx
+execute:
+  warning: false
+  message: false
+  echo: false
+---
+
+The large volume of images available in the DIAMS database makes it impossible to process them all exhaustively. It is therefore necessary to extract a relevant subset that is representative of the conditions throughout the entire period covered, while maintaining sufficient quality in terms of data completeness. The document describes the approach taken to achieve this selection.
+
+```{r}
+#| label: setup-env
+#| echo: false
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(fs)
+library(flextable)   
+library(officer)
+
+if (!dir.exists("../output")) {
+  dir.create("../output")
+}
+
+# ── Flextable parameterization ───────────────────────────────────────────────────────────────
+set_flextable_defaults(
+  font.family  = "Arial",
+  font.size    = 9,
+  border.color = "#CCCCCC",
+  padding      = 4,
+  line_spacing = 1.1
+)
+
+# Convenience wrapper — applies a consistent publication style to any flextable.
+style_ft <- function(ft,
+                     header_bg    = "white",
+                     header_color = "black",
+                     zebra_bg     = "white") {
+  # Compute even-row indices directly (row_number() has no dplyr context in flextable)
+  n_rows    <- nrow(ft$body$dataset)
+  even_rows <- seq(2, n_rows, by = 2)
+  ft %>%
+    # Header background & bold white text
+    bg(part = "header", bg = header_bg) %>%
+    color(part = "header", color = header_color) %>%
+    bold(part = "header") %>%
+    # Alternating row shading — integer vector, not formula
+    bg(i = even_rows, bg = zebra_bg, part = "body") %>%
+    # Horizontal rules only (cleaner than full grid)
+    hline(part = "body",
+          border = fp_border_default(color = "#999999", width = 0.5)) %>%
+    hline_bottom(part = "body",
+                 border = fp_border_default(color = "black", width = 1.5)) %>%
+    hline_top(part = "header",
+              border = fp_border_default(color = "black", width = 1.5)) %>%
+    # Vertical inner borders between columns (grey for body, navy for header)
+    vline(border = fp_border_default(color = "#999999", width = 0.5), part = "body") %>%
+    vline(border = fp_border_default(color = "black", width = 0.5), part = "header") %>%
+    border_outer(border = fp_border_default(color = "black", width = 1)) %>%
+    # Consistent cell padding
+    padding(padding.top = 5, padding.bottom = 5,
+            padding.left = 7, padding.right = 7, part = "all") %>%
+    align(align = "center", part = "header") %>%
+    align(j    = 1, align = "left",   part = "body") %>%
+    # Prevent table rows from splitting across pages (cantSplit on <w:trPr>)
+    set_table_properties(layout = "autofit", width = 1,
+                         opts_word = list(split = FALSE))
+}
+```
+
+```{r}
+#| label: data-import
+df_fauna <- read.csv("../data/fauna_data.csv", sep = ",", na.strings = c("", "NA"))
+
+#Only metadata related to usable images (=samples) are retained, i.e. those for which fauna data are available
+df <- df_fauna %>%  
+  select(date, scanner, image_name) %>%
+  unique() %>%
+  mutate(date = ymd_hms(date),
+    position = substr(scanner, 4, 4),
+    depth = substr(scanner, 5, 6),
+    orientation = substr(scanner, 8, 8),
+    presence = 1) %>% 
+  filter(position != "B")
+```
+
+## Hour filtering
+
+**Only images captured at midnight and noon are selected.** These schedules are retained because they represent night and day periods respectively, regardless of seasonality.
+
+```{r}
+#| label: hour-filtering
+#Correction of minute offset: Some images have a one-minute offset (minute = 01) that distorts the time selection. This bias is corrected by normalising the times.
+df <- df %>%
+  mutate(date = if_else(minute(date) == 1, date - minutes(1), date),
+    hour = hour(date),
+    minute = minute(date)) %>%
+  filter(minute == 0, hour %in% c(0, 12)) %>%
+  select(-hour, -minute)%>%
+  mutate(hour = format(date, "%H:%M")) %>%
+  mutate(day = as.Date(date)) %>%
+  group_by(date,scanner,position,depth,orientation,presence,day, hour) %>%
+  slice(1) %>% 
+  ungroup()
+```
+
+## Completion of the dataset
+
+In order to assess the completeness of the data, a comprehensive grid of all possible combinations (day, time, position, depth, orientation) is generated. This is then cross-referenced with the observed data in order to identify any missing combinations.
+
+```{r}
+#| label: data-completion
+df_complete <- expand_grid(day = unique(df$day),
+                          hour = c("00:00", "12:00"),
+                          position = unique(df$position),
+                          depth = unique(df$depth),
+                          orientation = unique(df$orientation)) %>%
+  left_join(df, by = c("day", "hour", "position", "depth", "orientation")) %>%
+  mutate(presence = replace_na(presence, 0))
+```
+
+**Visualisation of filtered data :**
+
+```{r}
+#| label: fig-complete-data
+#| fig-cap: "Presence/absence of images by scanner and date"
+#| fig-width: 6
+#| fig-height: 4.5
+#| fig-align: "center"
+#| fig-dpi: 300
+df_complete <- df_complete %>%
+  mutate(datetime = as.POSIXct(paste(day, .data$hour), format = "%Y-%m-%d %H:%M"),
+         scanner  = paste(position, depth, orientation, sep = "_"))
+
+ggplot(df_complete, aes(x = datetime, y = scanner, color = as.factor(presence))) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = c("0" = "grey80", "1" = "#F4631E"), labels = c("Absence", "Presence"), name = "Image") +
+  labs(x = "Date", y = "Scanner") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Period selection
+
+To guarantee the quality of the selected subset, data completeness is verified for each acquisition date and over continuous periods.
+
+First, the **expected number of images per day** is determined :
+
+```{r}
+nb_img_day <- n_distinct(df_complete$scanner) * 2 
+cat("Number of images expected per day : ", nb_img_day)
+```
+
+We then identify the days on which at least **65% of these images are present** :
+
+```{r}
+prop = 0.65
+days_complete <- df_complete %>%
+  group_by(day) %>%
+  summarise(n = sum(presence), .groups = "drop") %>%
+   mutate(complet = n >= (nb_img_day * prop))
+cat("Number of images expected per day : ", round(nb_img_day * prop, 0))
+```
+
+We select the **groups of 7 consecutive days** that meet this criterion :
+
+```{r}
+duration_min_period = 7
+#identification of continuous groups of full days
+days_complete <- days_complete %>%
+  arrange(day) %>%
+  mutate(gap = c(0, diff(day)),
+    group = cumsum(gap != 1 | !complet)) 
+#selection of groups of more than 7 consecutive full days
+valid_days <- days_complete %>%
+  filter(complet) %>%
+  count(group) %>%
+  filter(n >= duration_min_period) %>%
+  inner_join(days_complete, by = "group") %>%
+  pull(day)
+
+df_final <- df_complete %>%
+  filter(day %in% valid_days)
+```
+
+**Viewing filtered data:**
+
+```{r}
+#| label: fig-filtered-images
+#| fig-cap: "Presence/absence of images by scanner and date"
+#| fig-width: 6
+#| fig-height: 4.5
+#| fig-align: "center"
+#| fig-dpi: 300
+df_final%>%
+  filter(datetime> as.Date('2024-02-01') & datetime < as.Date('2025-07-01'))%>%
+ggplot(aes(x = datetime, y = scanner, color = as.factor(presence))) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(
+    values = c("0" = "grey80", "1" = "#F4631E"),
+    labels = c("Absence", "Presence"),
+    name = "Image"
+  ) +
+  labs(
+    x = "Date",
+    y = "Scanner"
+  ) +
+  scale_x_datetime(
+    date_breaks = "1 month",
+    date_labels = "%b %Y") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Selection of representative weeks
+
+In order to cover different **seasonal and crop phases**, several 7-day periods spread throughout the year are targeted.
+
+Five target dates, spread throughout the year, are selected as the starting point for each 7-day period. For each date, the following 7 days are retrieved from the filtered data. Days with at least 90% of the expected images are counted. A week is considered "complete" if all 7 days are valid.
+
+```{r}
+#| echo: false
+target_dates <- tibble(
+  period = 1:7,
+  start_date = as.Date(c("2024-03-20", "2024-05-25", 
+                         "2024-07-15", "2024-09-19", 
+                         "2024-12-10", "2025-02-15", "2025-04-20")))
+selected_weeks <- target_dates %>%
+  mutate(data = map(start_date, ~ df_final %>%
+                      filter(day >= .x, day <= .x + (duration_min_period-1)))) %>%
+  unnest(cols = c(data))
+
+validity_weeks <- selected_weeks %>%
+  count(period, day, wt = presence) %>%
+  group_by(period) %>%
+  summarise(valid_days = sum(n >= nb_img_day * prop), complet = valid_days == duration_min_period, .groups = "drop")
+
+print(validity_weeks)
+```
+
+Each period is associated with a crop and a season according to its dates, by cross-referencing sowing/harvesting periods and calendar definitions of seasons.
+
+```{r}
+crops <- tibble(
+  crop = c("wheat", "sorghum", "Bare soil", "Chickpea"),
+  start_date = as.Date(c("2023-12-14", "2024-07-09", "2024-11-23", "2025-03-17")),
+  final_date   = as.Date(c("2024-07-08", "2024-11-22", "2025-03-16", "2025-07-15"))
+)
+
+years <- 2023:2025
+season <- c("spring", "summer", "autumn", "winter")
+seasons <- bind_rows(lapply(years, function(an) {
+  tibble(
+    season = season,
+    start_date = as.Date(paste0(an, c("-03-21", "-06-21", "-09-21", "-12-21"))),
+    final_date = as.Date(paste0(c(an, an, an, an + 1), c("-06-20", "-09-20", "-12-20", "-03-20"))))
+}))
+
+df_final <- selected_weeks %>%
+  left_join(crops %>% rowwise() %>% mutate(day = list(seq(start_date, final_date, by = "day"))) %>% unnest(cols = c(day)) %>% select(day, crop),
+            by = "day") %>%
+  left_join(seasons %>% rowwise() %>% mutate(day = list(seq(start_date, final_date, by = "day"))) %>% unnest(cols = c(day)) %>% select(day, season),
+            by = "day")
+```
+
+**Summary of selected periods:**
+
+```{r}
+#| label: tbl-selected-periods-summary
+#| tbl-cap: "Summary of selected periods"
+synthesis_table <- df_final %>%
+  group_by(period) %>%
+  summarise(
+    start_date = min(day),
+    final_date = max(day),
+    nb_images  = sum(presence),
+    crops      = paste(unique(na.omit(crop)), collapse = ", "),
+    seasons    = paste(unique(na.omit(season)), collapse = ", "),
+    .groups    = "drop"
+  )
+
+synthesis_table %>%
+  flextable() %>%
+  set_header_labels(
+    period     = "Period",
+    start_date = "Start Date",
+    final_date = "Final Date",
+    nb_images  = "No. Images",
+    crops      = "Crops",
+    seasons    = "Seasons"
+  ) %>%
+  style_ft() %>%
+  width(j = c("period", "start_date", "final_date", "nb_images"), width = 0.9) %>%
+  width(j = c("crops", "seasons"), width = 1.35)
+
+```
+
+**Final display of selected periods**
+
+```{r}
+#| label: fig-selected-periods
+#| fig-cap: "Presence/absence of images by scanner and date"
+#| fig-width: 6
+#| fig-height: 4.5
+#| fig-align: "center"
+#| fig-dpi: 300
+ggplot(df_final, aes(x = datetime, y = scanner, color = as.factor(presence))) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = c("0" = "grey80", "1" = "#F4631E"), labels = c("Absence", "Presence"), name = "Image") +
+  labs(x = "Date", y = "Scanner") +
+  scale_x_datetime(date_breaks = "1 month", date_labels = "%b %Y") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+## Selection of previous images for differentiation
+
+Creation of a copy of the image set with dates shifted by 9 days and selection of corresponding images
+
+```{r}
+# We shift the time window back by 9 days to find the 'starting point' for each observation.
+df_reference <- df_final %>%
+  filter(presence==1)%>%
+  mutate(date = date - days(9)) %>%
+  select(depth, position, orientation, date) %>%
+  left_join(df %>% 
+      select(depth, position, orientation, date, image_name), by = c("depth", "position", "orientation", "date"))%>%
+  mutate(presence = if_else(is.na(image_name), 0, 1),
+         day_ref = as.Date(date),
+         hour_ref = format(date, "%H:%M"))
+```
+
+```{r}
+#| label: fig-reference-images
+#| fig-cap: "Presence/absence of images by scanner and date"
+df_reference %>%  
+mutate(scanner = paste(position, depth, sep="_"))%>%
+ggplot(aes(x = date, y = scanner, color = as.factor(presence))) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = c("0" = "grey80", "1" = "darkgreen"), labels = c("Absence", "Presence"), name = "Image") +
+  labs(x = "Date", y = "Scanner", title = "Presence/absence of images by scanner and date") +
+  scale_x_datetime(date_breaks = "1 month", date_labels = "%b %Y") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+Filtering images from the current dataset based on missing images from the previous dataset
+
+```{r}
+# We only keep 'Current' images (T0) that have a valid 'Reference' image (T-9).
+# This ensures the differential analysis (e.g., growth measurement) is possible.
+df_final_filtered <- df_final %>%
+  filter(presence == 1) %>%
+  mutate(day_ref = as.Date(date - days(9)),
+         hour_ref = format(date - days(9), "%H:%M")) %>%
+  inner_join(df_reference %>%
+              filter(presence == 1) %>%
+              select(depth, position, orientation, day_ref, hour_ref),
+            by = c("depth", "position", "orientation", "day_ref", "hour_ref"))%>%
+  mutate(id_image = "current")%>%
+  select(scanner, date, id_image, image_name)
+
+#Total list of images to be processed
+# We combine the filtered 'Current' images and their 'Reference' images 
+# into a single vertical list for processing.
+df_combined <- df_reference %>%
+  mutate(scanner = paste(position, depth, orientation, sep="_"))%>%
+  filter(presence == 1)%>%
+  mutate(id_image = "reference")%>%
+  select(scanner, date, id_image, image_name)%>%
+  bind_rows(., df_final_filtered)
+```
+
+```{r}
+#| label: fig-combined-images
+#| fig-cap: "Presence/absence of images by scanner and date"
+#| fig-width: 6
+#| fig-height: 4.5
+#| fig-align: "center"
+#| fig-dpi: 300
+df_combined %>%
+ggplot(aes(x = date, y = scanner, color = as.factor(id_image))) +
+  geom_point(size = 2, alpha = 0.8) +
+  scale_color_manual(values = c("reference" = "darkgreen", "current" = "#F4631E"), name = "Image") +
+  labs(x = "Date", y = "Scanner", title = "Presence/absence of images by scanner and date") +
+  scale_x_datetime(date_breaks = "1 month", date_labels = "%b %Y") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+cat("--- FINAL COMPLETENESS REPORT ---\n",
+    "Initial target images (T0):      ", nrow(df_final), "\n",
+      "Analyzable pairs (T0 + T-9):     ", nrow(df_final_filtered), "\n",
+      "Number of missing images :", nrow(df_final)-nrow(df_final_filtered), "\n",
+    "Missing frame rate :", round((1-(nrow(df_final_filtered)/nrow(df_final)))*100, 2), "%")
+```
+
+|  |  |  |
+|----|----|----|
+| **Dataset Name** | **Description** | **Role in the pipeline** |
+| **`df_complete`** | Theoretical grid vs. Observed data. | Used to calculate the initial missing data rate and identify stable periods. |
+| **`df_final`** | Targeted images based on seasonal periods. | Represents the "intended" scope of the study. |
+| **`df_reference`** | Set of images shifted by -9 days. | Acts as the baseline (J-9) for every observation. |
+| **`df_final_filtered`** | Images from `df_final` that passed the J-9 check. | These are the "Current" images that are actually treatable. |
+| **`df_combined`** | Union of `df_final_filtered` and their valid references. | The final list of all unique image names required from the server. |
+
+: Dataset Characterization
+
+```{r}
+# image bank creation
+images_bank <- paste0(unique(df_combined$image_name), ".png")
+writeLines(images_bank, "../output/image_bank.txt")
+```
+
+## Generalized Diagnostic Function
+
+```{r}
+#' Check Data Consistency
+check_integrity <- function(expected_df, target, mode = "folder", file_ext = ".png", clean_regex = NULL) {
+  
+  # 1. Get the list of IDs we EXPECT
+  expected_ids <- unique(expected_df$image_name)
+  
+  # 2. Get the list of IDs we ACTUALLY HAVE
+  if (mode == "folder") {
+    if (!dir.exists(target)) stop("Directory not found: ", target)
+    actual_files <- list.files(target, pattern = paste0(file_ext, "$"))
+    # Remove extension to get the ID
+    actual_ids <- gsub(paste0(file_ext, "$"), "", actual_files)
+    # Apply cleaning regex if provided (e.g., to remove _distance_root_growth)
+    if (!is.null(clean_regex)) {
+      actual_ids <- unique(gsub(clean_regex, "", actual_ids))
+    }
+  } else if (mode == "csv") {
+    if (!file.exists(target)) stop("CSV file not found: ", target)
+    actual_data <- read.csv(target)
+    if (!"image_name" %in% colnames(actual_data)) stop("CSV must contain 'image_name' column")
+    actual_ids <- unique(actual_data$image_name)
+  }
+
+  # 3. Comparison Logic
+  missing_ids <- setdiff(expected_ids, actual_ids)
+  extra_ids   <- setdiff(actual_ids, expected_ids)
+  
+  # 4. Reporting
+  n_exp <- length(expected_ids)
+  n_act <- length(actual_ids)
+  coverage <- round((n_act / n_exp) * 100, 2)
+  
+  cat("\n==========================================\n")
+  cat("  INTEGRITY REPORT: ", basename(target), "\n")
+  cat("==========================================\n")
+  cat("Expected Unique IDs: ", n_exp, "\n")
+  cat("Actual Unique Found: ", n_act, "\n")
+  cat("Coverage Rate:       ", coverage, "%\n")
+  
+  if (length(missing_ids) > 0) {
+    cat("\nMISSING DATA (", length(missing_ids), " items):\n")
+    print(head(sort(missing_ids), 10))
+  } else {
+    cat("\nSUCCESS: No missing data.\n")
+  }
+  
+  if (length(extra_ids) > 0) {
+    cat("\nEXTRA DATA (", length(extra_ids), " items found but not expected)\n")
+    cat("Named (", sort(extra_ids))
+  }
+  
+  return(invisible(missing_ids)) # Returns the list silently for further use
+}
+
+#' @param expected_df The reference dataframe (e.g., df_combined or df_final_filtered)
+#' @param target Path to a directory OR path to a CSV file
+#' @param mode Either "folder" or "csv"
+#' @param file_ext If mode="folder", the extension to look for (default ".png")
+#' @param clean_regex A regex pattern to remove suffixes from filenames (optional)
+# 1. Checking the raw images folder
+check_integrity(
+  expected_df = df_combined, 
+  target = "/media/ebelaud/INTENSO/root_mask_data/", 
+  mode = "folder", 
+  file_ext = ".png"
+)
+
+# 2. Checking the output raster folder (tif)
+raster_suffixes <- "(_distance_root_growth|_distance_root_mature|_root_growth|_root_mature)"
+check_integrity(
+  expected_df = df_final_filtered, 
+  target = "/media/ebelaud/INTENSO/output_raster", 
+  mode = "folder", 
+  file_ext = ".tif",
+  clean_regex = raster_suffixes
+)
+
+# 3. Checking the final data results
+check_integrity(
+  expected_df = df_final_filtered, 
+  target = "../output/distance_habitat_data.csv", 
+  mode = "csv"
+)
+
+# 3. Checking the cleaned final data results
+check_integrity(
+  expected_df = df_final_filtered, 
+  target = "../output/distance_data_cleaned.csv", 
+  mode = "csv"
+)
+```

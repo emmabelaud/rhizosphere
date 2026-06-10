@@ -1,0 +1,266 @@
+---
+title: "Supplementary Information S2 : Characterisation of root growth dynamics"
+format:
+  docx:
+    toc: false
+    highlight-style: github
+    fig-dpi: 300
+    fig-format: png
+    df-print: kable
+    reference-doc: custom-reference.docx
+execute:
+  warning: false
+  message: false
+  echo: false
+---
+
+**Our objective is to differentiate between mature and growing (apex) root zones based on temporal variations in surface area**. We operate on the assumption that root elongation and expansion occur dynamically during an initial active phase, followed by a period of physiological stabilization or growth deceleration.
+
+By quantifying surface area increments ($\Delta$) across increasing time lags, we can identify the inflection point where the rate of new surface accumulation begins to decelerate. This threshold defines the temporal window used to distinguish "newly emerged" functional segments from the established root network.
+
+```{r}
+#| label: setup-env
+library(terra)
+library(tidyverse)
+library(ggplot2)
+library(gridExtra)
+library(lubridate)
+library(purrr)
+library(gratia)
+library(mgcv)
+library(flextable)   
+library(officer)
+if (!dir.exists("../output")) {
+  dir.create("../output")
+}
+
+# ── Flextable parameterization ───────────────────────────────────────────────────────────────
+set_flextable_defaults(
+  font.family  = "Arial",
+  font.size    = 9,
+  border.color = "#CCCCCC",
+  padding      = 4,
+  line_spacing = 1.1
+)
+
+# Convenience wrapper — applies a consistent publication style to any flextable.
+style_ft <- function(ft,
+                     header_bg    = "white",
+                     header_color = "black",
+                     zebra_bg     = "white") {
+  # Compute even-row indices directly (row_number() has no dplyr context in flextable)
+  n_rows    <- nrow(ft$body$dataset)
+  even_rows <- seq(2, n_rows, by = 2)
+  ft %>%
+    # Header background & bold white text
+    bg(part = "header", bg = header_bg) %>%
+    color(part = "header", color = header_color) %>%
+    bold(part = "header") %>%
+    # Alternating row shading — integer vector, not formula
+    bg(i = even_rows, bg = zebra_bg, part = "body") %>%
+    # Horizontal rules only (cleaner than full grid)
+    hline(part = "body",
+          border = fp_border_default(color = "#999999", width = 0.5)) %>%
+    hline_bottom(part = "body",
+                 border = fp_border_default(color = "black", width = 1.5)) %>%
+    hline_top(part = "header",
+              border = fp_border_default(color = "black", width = 1.5)) %>%
+    # Vertical inner borders between columns (grey for body, navy for header)
+    vline(border = fp_border_default(color = "#999999", width = 0.5), part = "body") %>%
+    vline(border = fp_border_default(color = "black", width = 0.5), part = "header") %>%
+    border_outer(border = fp_border_default(color = "black", width = 1)) %>%
+    # Consistent cell padding
+    padding(padding.top = 5, padding.bottom = 5,
+            padding.left = 7, padding.right = 7, part = "all") %>%
+    align(align = "center", part = "header") %>%
+    align(j    = 1, align = "left",   part = "body") %>%
+    # Prevent table rows from splitting across pages (cantSplit on <w:trPr>)
+    # Remplacer la fin de la fonction style_ft par ceci :
+    set_table_properties(
+      layout = "fixed", 
+      width = 1,
+      opts_word = list(split = FALSE, keep_with_next = TRUE)
+    )
+}
+```
+
+```{r}
+#| label: data-preparation
+df_pixel_count <- read.csv("../data/root_pixels_count.csv")
+image_bank <- read.table("../output/image_bank.txt")
+
+# Data cleaning and metadata extraction
+df <- df_pixel_count %>%
+  mutate(image_name = sub("\\.png$", "", file)) %>%   
+  separate(file, into = c("bloc", "position", "orientation","year","month", "day", "hour", "minute", "fileextension1"), 
+           sep = "_|\\.|H|M.| |-", remove = FALSE)%>%
+  mutate(scanner= as.factor(paste(position, orientation, sep = "_")),
+         depth = as.factor(substr(scanner, 2, 3)),
+         position = as.factor(substr(scanner, 1, 1)),
+         orientation = as.factor(substr(scanner, 5, 5)))%>% 
+  filter(position != "B")
+
+# Some timestamps are recorded at minute = 1 instead of minute = 0.In some cases both exist, in others only minute = 1 exists. We want to correct minute = 1 to 0 only if there is no existing row at minute = 0.
+duplicate_date <- df %>%
+  group_by(scanner, year, month, day, hour) %>%
+  reframe(has_00 = any(minute == "00")) %>% ungroup()
+
+df <- df %>%
+  left_join(duplicate_date, 
+            by = c("scanner","year","month","day","hour")) %>%
+  mutate(minute = if_else(minute == "01" & !has_00, "00", minute),
+    date = ymd_hm(paste(year, month, day, hour, minute))) %>%
+  select(-has_00) %>%
+  filter(minute == "00", hour %in% c("00", "06", "12", "18"))%>%
+  filter(date> "2024-03-01 00:00:00")
+```
+
+## Surface area normalization
+
+To convert root occupancy from digital units (pixels) to physical metric units ($cm^2$), we account for the scanner resolution (1200 dpi). The conversion factor is derived from the linear resolution: $1200 \text{ dpi} / 2.54 \text{ cm/in} \approx 472.44 \text{ pixels/cm}$.
+
+The surface area in $cm^2$ is calculated as:
+
+$$
+Surface (cm^2) = Pixels / (472.44)^2
+$$
+
+```{r}
+#| label: conversion
+dpi <- 1200
+pixels_per_cm <- dpi / 2.54
+df <- df %>%
+  mutate(root_cm2_count = root_pixels_count / (pixels_per_cm^2))
+```
+
+## Visualization of root surface trends
+
+The following plot displays the evolution of total root surface area across the curated image bank, faceted by scanner unit :
+
+```{r}
+#| label: initial-plot
+#| fig-width: 6.5
+#| fig-height: 5.5
+#| fig-align: center
+#| fig-cap: "Root Surface Area Evolution"
+ggplot(df, aes(date, root_cm2_count)) +
+  geom_point(alpha = 0.5, size = 1) +
+  geom_line(alpha = 0.3) +
+  labs(x = "Date", 
+       y = expression(Root~area~(cm^2))) +
+  facet_wrap(~scanner, ncol = 4) +
+  theme_minimal()
+```
+
+## Quantification of apex surfaces according to time lags
+
+The difference in surface area between two successive observations represents newly emerged root tissue (the apices). **We analyzed the distribution of surface increments (**$\Delta cm^2$**) across intervals ranging from 6 to 720 hours (30 days)**. We applied an Interquartile Range (IQR) filter to remove extreme outliers in surface density that could skew growth estimates. Only positive increments are retained to represent growth; negative deltas—resulting from experimental noise or root decomposition—are normalized to zero.
+
+```{r}
+#| label: calculate-lags
+time_lags <- seq(6, 720, by = 6)
+
+calculate_differences <- function(df, lags) {
+  df <- df %>%
+    arrange(date)
+  
+  map_dfr(lags, function(lag_hr) {
+    df %>%
+      mutate(lag_hours = lag_hr,
+             date_target = date + hours(lag_hr)) %>%
+      left_join(df %>%
+                  select(date, root_cm2_count) %>%
+                  rename(date_target = date,
+                         root_cm2_count_lag = root_cm2_count),
+                by = c("date_target")) %>%
+      mutate(delta_cm2 = root_cm2_count_lag - root_cm2_count)
+  })
+}
+
+df_diff <- df %>%
+  group_by(bloc, position, depth, orientation)%>%
+  group_modify(~calculate_differences(.x, time_lags))%>%
+  ungroup()%>%
+  filter(!is.na(delta_cm2))%>%
+  # filtering of extreme surface root density values
+  filter(delta_cm2 >= quantile(delta_cm2, 0.25, na.rm = TRUE) - 1.5 * IQR(delta_cm2, na.rm = TRUE),delta_cm2 <= quantile(delta_cm2, 0.25, na.rm = TRUE) + 1.5 * IQR(delta_cm2, na.rm = TRUE))%>%
+  mutate(delta_cm2 = if_else(delta_cm2 < 0, 0, delta_cm2))
+```
+
+The average apex areas as a function of time step are shown, along with their variability (standard deviation). An initial average is calculated by scanner, then the values are aggregated:
+
+```{r}
+#| label: plot-dynamics
+#| fig-cap: "Root Surface Area Evolution"
+#| fig-width: 6.5
+#| fig-height: 4.5
+#| fig-align: center
+plot1 <- df_diff %>%
+  group_by(bloc, scanner, lag_hours) %>%
+  mutate(mean_delta = mean(delta_cm2, na.rm = TRUE),
+         sd_delta = sd(delta_cm2, na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(lag_hours) %>%
+  mutate(mean_delta = mean(mean_delta, na.rm = TRUE),
+         sd_delta = sd(sd_delta, na.rm = TRUE)) %>%
+  ggplot(aes(lag_hours, mean_delta)) +
+  geom_line() +
+  labs(x = "Time step (hours)", y = "Average surface area of the apices (cm²)")
+
+plot2 <- plot1 +
+  geom_ribbon(aes(ymin = mean_delta - sd_delta,
+                  ymax = mean_delta + sd_delta,
+                  alpha = 0.1)) +
+  labs(y = "Average surface area ± SD (cm²)") +
+  theme(legend.position = "none")
+
+plot2
+```
+
+## Statistical Modeling and Threshold Detection
+
+-   To formally identify the transition from active growth to stabilization, we employed a Generalized Additive Model (GAM), which allows for the flexible **modeling of the non-linear relationship between the time lag and the accumulated surface area of the apices**.
+
+-   We pinpointed the growth inflection point by calculating the first derivative ($f'(x)$) of the estimated smooth function.
+
+-   **The first derivative represents the instantaneous rate of growth accumulation, while the inflection point is identified at the specific lag where this derivative crosses zero**. Such a crossing into negative values indicates a distinct phase change, signaling a transition from active expansion to a growth slowdown or a net loss of visible surface area.
+
+```{r}
+#| label: gam-modelling
+#| # GAM with random effects for scanner
+mod <- gam(delta_cm2 ~ s(lag_hours, k=20) + s(scanner, bs="re")
+           ,data = df_diff)
+#gam.check(mod)
+#plot(DHARMa::simulateResiduals(fittedModel = mod)) 
+
+# Extracting first derivative using the gratia package
+deriv <- derivatives(mod, order = 1)
+
+# Detection of the first point where the lower CI of the derivative approaches zero
+# Index of first point where lower CI < 0
+changepoint_index <- which(deriv$.lower_ci < 0)[1]
+# Corresponding time in hours
+changepoint <- deriv$lag_hours[changepoint_index]
+
+# Print threshold in days
+cat("thresholds :", round(changepoint/24, 0), "days")
+```
+
+The first derivative of the model reveals that the rate of accumulation decelerates sharply as it approaches the 9-day (216-hour) mark. At this temporal juncture, the growth curve transitions from an active expansion phase to a relative plateau. Beyond this 216-hour threshold, any 'newly' observed surface area likely reflects the stabilization of established tissue or secondary thickening rather than primary apical elongation.
+
+```{r}
+#| label: plot-derivative
+#| fig-cap: "Estimated First Derivative of Growth Curve"
+#| fig-subcap: "Red line indicates chosen 9-day threshold"
+#| fig-width: 6.5
+#| fig-height: 4.5
+#| fig-align: "center"
+
+draw(deriv) +
+  geom_vline(xintercept = changepoint, linetype = "dashed", color = "red") +
+  labs(x = "Time lag (hours)", 
+       y = "Partial Derivative (Rate of Change)") +
+  theme_minimal()
+```
+
+**This 9-day interval serves as a functional boundary to distinguish highly active apical zones from more stable, mature root segments.**
